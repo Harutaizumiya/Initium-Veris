@@ -1,0 +1,16 @@
+{
+  "name": "initium-veris",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "turbo dev --filter=web --filter=api",
+    "build": "turbo build --filter=@initium-veris/api-client --filter=web --filter=api",
+    "test": "turbo test --filter=@initium-veris/api-client --filter=web --filter=api",
+    "lint": "turbo lint --filter=@initium-veris/api-client --filter=web --filter=api",
+    "check-types": "turbo check-types --filter=@initium-veris/api-client --filter=web --filter=api",
+    "clean": "turbo clean --filter=web --filter=api"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.5"
+  }
+}

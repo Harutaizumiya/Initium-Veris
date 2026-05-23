@@ -1,93 +1,21 @@
-# Origin 项目总览
+# Project Structure
 
-## 概览
+## Overview
+这是一个基于 Turborepo 组织的前后端分离食品库存管理仓库，根工作区通过 `pnpm` 和 `turbo` 统一调度 React 管理端与 Django API。前端负责登录态感知、权限路由、页面交互和图表展示；后端负责 cookie 认证、权限校验、商品与批次管理、库存操作、看板分析以及二维码标签/扫码审计。
 
-当前仓库由一个前端应用和一个 Django 后端组成，属于典型的前后端分离架构：
+## Modules
+- 仓库编排层：根目录 `package.json`、`pnpm-workspace.yaml`、`turbo.json` 负责工作区发现、统一脚本入口和任务编排
+- 前端接入层：`apps/web/src/main.tsx`、`App.tsx`、`routes`、`components/auth` 负责应用启动、路由注册、登录拦截和权限守卫
+- 前端页面与展示层：`apps/web/src/components/pages`、`layout`、`dashboard`、`charts`、`tables` 负责库存管理、看板、分析、扫码、设置等业务界面
+- 前端状态与 API 适配层：`apps/web/src/providers`、`api`、`lib` 负责认证状态、React Query 缓存、请求封装、扫码/打印工具和日志
+- 后端认证与权限层：`apps/api/accounts` 负责 CSRF、登录登出、当前用户、角色/权限/用户管理，以及基于 cookie token 的鉴权
+- 后端库存领域层：`apps/api/inventory` 负责商品、批次、库存操作、效期预警、二维码凭证、扫码审计、看板和分析接口
+- 后端通用与配置层：`apps/api/config`、`common` 负责 Django 配置、URL 汇总、数据库与环境变量解析、统一响应和异常处理
 
-- 前端目录：`origin_frontend`
-- 后端目录：`origin_django`
-- 根目录职责：统一托管源码、文档和版本管理
+## Data Flow
+用户先通过前端接入层进入登录页或受保护页面，`AuthProvider` 调用 `/api/auth/*` 初始化登录态，路由守卫根据权限码决定是否放行。页面层通过前端 API 适配层请求 Django `/api` 接口，并由 React Query 管理缓存和失效。后端请求先进入 `config.urls` 汇总的认证或库存路由，再由 `accounts` 完成 cookie 认证和权限校验，随后交给 `inventory.services` 执行业务规则、数据库读写、效期计算和扫码审计，最终通过 `common` 的统一响应结构返回前端。开发时，根工作区通过 `turbo dev` 并发启动 `apps/web` 的 Vite 服务和 `apps/api` 的 Django 服务。
 
-前端负责页面渲染、用户交互、权限感知路由和 API 调用；后端负责认证、权限、商品、批次、库存操作、分析统计和二维码扫码能力。
-
-## 顶层结构
-
-```text
-origin/
-├── docs/
-│   └── structure.md
-├── origin_frontend/
-│   ├── docs/structure.md
-│   ├── src/
-│   └── package.json
-└── origin_django/
-    ├── docs/api.md
-    ├── config/
-    ├── accounts/
-    ├── inventory/
-    └── manage.py
-```
-
-## 前端结构摘要
-
-前端采用“入口与路由 -> Provider -> 布局壳 -> 页面模块 -> API 适配层”的组织方式。
-
-- `src/main.tsx`：应用入口，挂载 React 根节点并注入全局 Provider
-- `src/App.tsx` / `src/routes`：路由注册、懒加载、路由权限控制
-- `src/providers`：认证和 React Query 全局状态
-- `src/components/layout`：主布局、侧栏、头部、布局上下文
-- `src/components/pages`：Dashboard、商品、库存、报损、分析、设置、登录、扫码页面
-- `src/api`：认证、商品、批次、分析、扫码等请求封装与查询键管理
-- `src/lib` / `src/types`：工具函数、打印、扫码和共享类型
-
-前端详细结构说明见：`origin_frontend/docs/structure.md`
-
-## 后端结构摘要
-
-后端以 Django 项目结构组织，按领域拆分模块：
-
-- `config`：项目配置、URL 汇总、ASGI/WGI 入口
-- `accounts`：认证、权限、角色、用户、token/cookie 相关逻辑
-- `inventory`：商品、批次、库存操作、效期计算、扫码、业务服务与测试
-- `common`：统一响应、异常、环境读取和通用视图能力
-
-后端对外以 `/api` 为统一前缀，核心 API 包括：
-
-- 认证：`/auth/csrf`、`/auth/login`、`/auth/logout`、`/auth/me`
-- 权限管理：`/auth/permissions`、`/auth/roles`、`/auth/users`
-- 看板与分析：`/dashboard/overview`、`/analytics/summary`
-- 商品：`/products`、`/products/{id}`、`/products/categories`
-- 批次与库存：`/batches`、`/batches/{id}`、`/batches/{id}/operations`
-- 标签与扫码：`/batches/{id}/label-payload`、`/qr-scans`、`/qr-scans/bulk`
-
-后端完整 API 契约见：`origin_django/docs/api.md`
-
-## 前后端协作关系
-
-### 认证
-
-- 前端通过 `credentials: "include"` 携带 cookie
-- 后端通过 HttpOnly `origin_auth_token` cookie 维护登录状态
-- 所有写请求必须带 `X-CSRFToken`
-
-### 业务数据
-
-- 前端 `src/api` 与 Django `/api` 契约对齐
-- React Query 负责缓存、重试和失效
-- 后端统一返回 `{ code, message, data }` 结构
-
-### 权限控制
-
-- 后端以权限码作为最终准入规则
-- 前端可根据用户权限做路由和页面级能力裁剪
-
-## 整合结论
-
-这两个子项目已经具备被同一个 Git 仓库托管的条件：
-
-- 目录边界清晰
-- 文档边界清晰
-- API 契约明确
-- 前后端职责分离明确
-
-本次整合保持子项目内部结构不变，只新增根目录级说明，避免过度调整已有代码。
+## Next Steps
+- 核对根 README 中声明的子项目文档是否都与当前实现同步，尤其是前端结构文档和后端 API 契约
+- 验证前端 `src/api` 与后端 `docs/backend/api.md` 是否仍完全一致，避免路由或字段漂移
+- 后续如需沉淀共享组件、类型或构建配置，可优先在 `packages/` 下拆分，而不是重新耦合 `apps/web` 与 `apps/api`

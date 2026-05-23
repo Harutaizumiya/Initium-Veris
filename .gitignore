@@ -12,16 +12,22 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Frontend
+origin_frontend/.codex/
+origin_frontend/.playwright-cli/
+origin_frontend/output/
+origin_frontend/.codex-*.log
 origin_frontend/node_modules/
 origin_frontend/dist/
 origin_frontend/.env.local
 origin_frontend/.env.*.local
 
 # Backend
+origin_django/.codex/
 origin_django/.venv/
 origin_django/venv/
 origin_django/__pycache__/
 origin_django/**/*.pyc
+origin_django/.env
 origin_django/db.sqlite3
 .pytest_cache/
 .mypy_cache/

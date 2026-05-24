@@ -88,7 +88,7 @@ declare const process:
 
 const API_BASE_URL =
   process?.env?.EXPO_PUBLIC_API_BASE_URL ||
-  (Platform.OS === "android" ? "http://10.0.2.2:8000/api" : "http://127.0.0.1:8000/api");
+  (Platform.OS === "android" ? "http://47.98.36.24:8000/api" : "http://47.98.36.24:8000/api");
 
 let mobileAuthToken: string | null = null;
 const mobileCookies = new Map<string, string>();
@@ -212,7 +212,8 @@ const queryClient = new QueryClient({
   },
 });
 
-type RouteKey = "dashboard" | "products" | "inventory" | "loss" | "qr" | "analytics" | "settings";
+type PrimaryTabKey = "dashboard" | "inventory" | "profile";
+type SecondaryRouteKey = "overview" | "analytics" | "products" | "batches" | "loss" | "qr" | SettingsTab;
 type SettingsTab = "profile" | "users" | "roles" | "permissions";
 type ToastType = "success" | "warning" | "error";
 
@@ -232,22 +233,54 @@ interface AuthContextValue {
   user: AuthenticatedUser | null;
 }
 
-interface RouteConfig {
-  key: RouteKey;
+interface SecondaryRouteConfig {
+  key: SecondaryRouteKey;
   label: string;
-  icon: LucideIcon;
   permission?: string;
+  superuserOnly?: boolean;
 }
 
-const routes: RouteConfig[] = [
-  { key: "dashboard", label: "总览", icon: LayoutDashboard, permission: "dashboard_read" },
-  { key: "products", label: "货物", icon: Boxes, permission: "products_read" },
-  { key: "inventory", label: "库存", icon: Package, permission: "batches_read" },
-  { key: "loss", label: "报损", icon: TriangleAlert, permission: "batch_operations_loss" },
-  { key: "qr", label: "扫码", icon: QrCode, permission: "qr_scans_create" },
-  { key: "analytics", label: "分析", icon: BarChart3, permission: "analytics_read" },
-  { key: "settings", label: "设置", icon: Settings },
+interface PrimaryTabConfig {
+  key: PrimaryTabKey;
+  label: string;
+  icon: LucideIcon;
+  routes: SecondaryRouteConfig[];
+}
+
+const primaryTabs: PrimaryTabConfig[] = [
+  {
+    key: "dashboard",
+    label: "仪表盘",
+    icon: LayoutDashboard,
+    routes: [
+      { key: "overview", label: "总览", permission: "dashboard_read" },
+      { key: "analytics", label: "分析", permission: "analytics_read" },
+    ],
+  },
+  {
+    key: "inventory",
+    label: "库存管理",
+    icon: Package,
+    routes: [
+      { key: "products", label: "货物", permission: "products_read" },
+      { key: "batches", label: "库存", permission: "batches_read" },
+      { key: "loss", label: "报损", permission: "batch_operations_loss" },
+      { key: "qr", label: "扫码", permission: "qr_scans_create" },
+    ],
+  },
+  {
+    key: "profile",
+    label: "个人",
+    icon: UserRound,
+    routes: [
+      { key: "profile", label: "账号" },
+      { key: "users", label: "用户", superuserOnly: true },
+      { key: "roles", label: "角色", superuserOnly: true },
+      { key: "permissions", label: "权限", superuserOnly: true },
+    ],
+  },
 ];
+const fallbackPrimaryTab = primaryTabs[2]!;
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -329,21 +362,55 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+function canAccessRoute(route: SecondaryRouteConfig, auth: AuthContextValue) {
+  if (route.superuserOnly && !auth.user?.isSuperuser) {
+    return false;
+  }
+
+  return !route.permission || auth.hasPermission(route.permission);
+}
+
+function defaultSecondaryState(): Record<PrimaryTabKey, SecondaryRouteKey> {
+  return {
+    dashboard: "overview",
+    inventory: "products",
+    profile: "profile",
+  };
+}
+
 function AppShell() {
   const auth = useAuth();
-  const [activeRoute, setActiveRoute] = useState<RouteKey>("dashboard");
+  const [activeTab, setActiveTab] = useState<PrimaryTabKey>("dashboard");
+  const [activeSecondaryByTab, setActiveSecondaryByTab] = useState(defaultSecondaryState);
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  const availableRoutes = useMemo(
-    () => routes.filter((route) => !route.permission || auth.hasPermission(route.permission)),
+  const visibleTabs = useMemo(
+    () => primaryTabs.filter((tab) => tab.key === "profile" || tab.routes.some((route) => canAccessRoute(route, auth))),
     [auth],
   );
+  const activeTabConfig = visibleTabs.find((tab) => tab.key === activeTab) ?? visibleTabs[0] ?? fallbackPrimaryTab;
+  const visibleSecondaryRoutes = activeTabConfig.routes.filter((route) => canAccessRoute(route, auth));
+  const activeSecondary = activeSecondaryByTab[activeTabConfig.key];
+  const activeSecondaryRoute = visibleSecondaryRoutes.find((route) => route.key === activeSecondary) ?? visibleSecondaryRoutes[0] ?? activeTabConfig.routes[0]!;
 
   useEffect(() => {
-    if (!availableRoutes.some((route) => route.key === activeRoute)) {
-      setActiveRoute(availableRoutes[0]?.key ?? "settings");
+    if (!visibleTabs.some((tab) => tab.key === activeTab)) {
+      setActiveTab(visibleTabs[0]?.key ?? "profile");
     }
-  }, [activeRoute, availableRoutes]);
+  }, [activeTab, visibleTabs]);
+
+  useEffect(() => {
+    if (activeSecondaryRoute && activeSecondaryRoute.key !== activeSecondary) {
+      setActiveSecondaryByTab((current) => ({ ...current, [activeTabConfig.key]: activeSecondaryRoute.key }));
+    }
+  }, [activeSecondary, activeSecondaryRoute, activeTabConfig.key]);
+
+  const setActiveSecondary = useCallback(
+    (route: SecondaryRouteKey) => {
+      setActiveSecondaryByTab((current) => ({ ...current, [activeTabConfig.key]: route }));
+    },
+    [activeTabConfig.key],
+  );
 
   if (auth.loading) {
     return <LoadingScreen label="正在校验登录状态" />;
@@ -357,17 +424,22 @@ function AppShell() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <View style={styles.app}>
-        <Header route={availableRoutes.find((route) => route.key === activeRoute)} />
+        <Header primary={activeTabConfig} secondary={activeSecondaryRoute} />
         <View style={styles.content}>
-          {activeRoute === "dashboard" ? <DashboardScreen /> : null}
-          {activeRoute === "products" ? <ProductsScreen onToast={setToast} /> : null}
-          {activeRoute === "inventory" ? <InventoryScreen onToast={setToast} /> : null}
-          {activeRoute === "loss" ? <LossScreen onToast={setToast} /> : null}
-          {activeRoute === "qr" ? <QrScanScreen onToast={setToast} /> : null}
-          {activeRoute === "analytics" ? <AnalyticsScreen /> : null}
-          {activeRoute === "settings" ? <SettingsScreen onToast={setToast} /> : null}
+          {activeTabConfig.key !== "profile" ? (
+            <SecondaryMenu routes={visibleSecondaryRoutes} activeRoute={activeSecondaryRoute.key} onChange={setActiveSecondary} />
+          ) : null}
+          {activeSecondaryRoute.key === "overview" ? <DashboardScreen /> : null}
+          {activeSecondaryRoute.key === "analytics" ? <AnalyticsScreen /> : null}
+          {activeSecondaryRoute.key === "products" ? <ProductsScreen onToast={setToast} /> : null}
+          {activeSecondaryRoute.key === "batches" ? <InventoryScreen onToast={setToast} /> : null}
+          {activeSecondaryRoute.key === "loss" ? <LossScreen onToast={setToast} /> : null}
+          {activeSecondaryRoute.key === "qr" ? <QrScanScreen onToast={setToast} /> : null}
+          {["profile", "users", "roles", "permissions"].includes(activeSecondaryRoute.key) ? (
+            <SettingsScreen activeTab={activeSecondaryRoute.key as SettingsTab} onTabChange={(tab) => setActiveSecondary(tab)} onToast={setToast} />
+          ) : null}
         </View>
-        <BottomNav routes={availableRoutes} activeRoute={activeRoute} onChange={setActiveRoute} />
+        <BottomNav tabs={visibleTabs} activeTab={activeTabConfig.key} onChange={setActiveTab} />
         <Toast toast={toast} onClose={() => setToast(null)} />
       </View>
     </SafeAreaView>
@@ -434,9 +506,9 @@ function LoginScreen() {
   );
 }
 
-function Header({ route }: { route?: RouteConfig }) {
+function Header({ primary, secondary }: { primary: PrimaryTabConfig; secondary?: SecondaryRouteConfig }) {
   const { logout, user } = useAuth();
-  const Icon = route?.icon ?? LayoutDashboard;
+  const Icon = primary.icon;
   return (
     <View style={styles.header}>
       <View style={styles.headerTitleRow}>
@@ -444,8 +516,8 @@ function Header({ route }: { route?: RouteConfig }) {
           <Icon color={tokens.primary} size={20} />
         </View>
         <View>
-          <Text style={styles.headerTitle}>{route?.label ?? "工作台"}</Text>
-          <Text style={styles.headerSubtitle}>{user?.displayName} · {user?.roleLabel}</Text>
+          <Text style={styles.headerTitle}>{primary.label}</Text>
+          <Text style={styles.headerSubtitle}>{secondary?.label ?? "工作台"} · {user?.displayName} · {user?.roleLabel}</Text>
         </View>
       </View>
       <Pressable style={styles.iconButton} onPress={() => void logout()}>
@@ -455,29 +527,54 @@ function Header({ route }: { route?: RouteConfig }) {
   );
 }
 
-function BottomNav({
+function SecondaryMenu({
   activeRoute,
   onChange,
-  routes: visibleRoutes,
+  routes,
 }: {
-  activeRoute: RouteKey;
-  onChange: (route: RouteKey) => void;
-  routes: RouteConfig[];
+  activeRoute: SecondaryRouteKey;
+  onChange: (route: SecondaryRouteKey) => void;
+  routes: SecondaryRouteConfig[];
 }) {
   return (
-    <View style={styles.bottomNav}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bottomNavContent}>
-        {visibleRoutes.map((route) => {
-          const Icon = route.icon;
+    <View style={styles.secondaryNav}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.secondaryNavContent}>
+        {routes.map((route) => {
           const active = route.key === activeRoute;
           return (
-            <Pressable key={route.key} style={[styles.navItem, active && styles.navItemActive]} onPress={() => onChange(route.key)}>
-              <Icon color={active ? tokens.primary : tokens.onSurfaceVariant} size={18} />
-              <Text style={[styles.navLabel, active && styles.navLabelActive]}>{route.label}</Text>
+            <Pressable key={route.key} style={[styles.secondaryNavItem, active && styles.secondaryNavItemActive]} onPress={() => onChange(route.key)}>
+              <Text style={[styles.secondaryNavLabel, active && styles.secondaryNavLabelActive]}>{route.label}</Text>
             </Pressable>
           );
         })}
       </ScrollView>
+    </View>
+  );
+}
+
+function BottomNav({
+  activeTab,
+  onChange,
+  tabs,
+}: {
+  activeTab: PrimaryTabKey;
+  onChange: (tab: PrimaryTabKey) => void;
+  tabs: PrimaryTabConfig[];
+}) {
+  return (
+    <View style={styles.bottomNav}>
+      <View style={styles.bottomNavContent}>
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const active = tab.key === activeTab;
+          return (
+            <Pressable key={tab.key} style={[styles.navItem, active && styles.navItemActive]} onPress={() => onChange(tab.key)}>
+              <Icon color={active ? tokens.primary : tokens.onSurfaceVariant} size={18} />
+              <Text style={[styles.navLabel, active && styles.navLabelActive]}>{tab.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -1188,9 +1285,16 @@ function AnalyticsScreen() {
   );
 }
 
-function SettingsScreen({ onToast }: { onToast: (toast: ToastState) => void }) {
+function SettingsScreen({
+  activeTab,
+  onTabChange,
+  onToast,
+}: {
+  activeTab: SettingsTab;
+  onTabChange: (tab: SettingsTab) => void;
+  onToast: (toast: ToastState) => void;
+}) {
   const { user } = useAuth();
-  const [tab, setTab] = useState<SettingsTab>("profile");
   const options = [
     { label: "账号", value: "profile" },
     ...(user?.isSuperuser
@@ -1204,12 +1308,12 @@ function SettingsScreen({ onToast }: { onToast: (toast: ToastState) => void }) {
 
   return (
     <RefreshableScreen>
-      <PageIntro title="设置" description="查看账号信息，超级管理员可管理用户、角色和权限。" />
-      <Segmented value={tab} options={options} onChange={(value) => setTab(value as SettingsTab)} />
-      {tab === "profile" ? <ProfilePanel /> : null}
-      {tab === "users" ? <UsersPanel onToast={onToast} /> : null}
-      {tab === "roles" ? <RolesPanel onToast={onToast} /> : null}
-      {tab === "permissions" ? <PermissionsPanel /> : null}
+      <PageIntro title="个人" description="查看账号信息，超级管理员可管理用户、角色和权限。" />
+      <Segmented value={activeTab} options={options} onChange={(value) => onTabChange(value as SettingsTab)} />
+      {activeTab === "profile" ? <ProfilePanel /> : null}
+      {activeTab === "users" ? <UsersPanel onToast={onToast} /> : null}
+      {activeTab === "roles" ? <RolesPanel onToast={onToast} /> : null}
+      {activeTab === "permissions" ? <PermissionsPanel /> : null}
     </RefreshableScreen>
   );
 }
@@ -2021,6 +2125,39 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  secondaryNav: {
+    borderBottomWidth: 1,
+    borderBottomColor: tokens.surfaceContainer,
+    backgroundColor: tokens.surface,
+    paddingVertical: 10,
+  },
+  secondaryNavContent: {
+    paddingHorizontal: 18,
+    gap: 8,
+  },
+  secondaryNavItem: {
+    minHeight: 38,
+    minWidth: 74,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: tokens.surfaceContainer,
+    backgroundColor: tokens.surfaceContainerLowest,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  secondaryNavItemActive: {
+    borderColor: tokens.primary,
+    backgroundColor: "#EAF2FF",
+  },
+  secondaryNavLabel: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: tokens.onSurfaceVariant,
+  },
+  secondaryNavLabelActive: {
+    color: tokens.primary,
+  },
   screen: {
     flex: 1,
   },
@@ -2055,10 +2192,12 @@ const styles = StyleSheet.create({
   },
   bottomNavContent: {
     paddingHorizontal: 12,
+    flexDirection: "row",
     gap: 8,
+    justifyContent: "space-between",
   },
   navItem: {
-    minWidth: 70,
+    flex: 1,
     height: 54,
     borderRadius: 18,
     alignItems: "center",

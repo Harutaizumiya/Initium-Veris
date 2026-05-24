@@ -29,6 +29,11 @@ interface LegacyLoginResponseDto {
   user: AuthenticatedUserDto;
 }
 
+interface TokenLoginResponseDto extends AuthenticatedUserDto {
+  auth_token?: string;
+  expires_in?: number;
+}
+
 export interface LoginCredentials {
   username: string;
   password: string;
@@ -36,6 +41,8 @@ export interface LoginCredentials {
 }
 
 export interface LoginResult {
+  authToken?: string;
+  expiresIn?: number;
   user: AuthenticatedUser;
 }
 
@@ -63,7 +70,7 @@ function isLegacyLoginResponse(data: AuthenticatedUserDto | LegacyLoginResponseD
 }
 
 export async function login(credentials: LoginCredentials, client: ApiClient = defaultApiClient): Promise<LoginResult> {
-  const data = await client.requestJson<LegacyLoginResponseDto | AuthenticatedUserDto>("/auth/login", {
+  const data = await client.requestJson<LegacyLoginResponseDto | TokenLoginResponseDto>("/auth/mobile-login", {
     auth: false,
     method: "POST",
     body: {
@@ -75,6 +82,8 @@ export async function login(credentials: LoginCredentials, client: ApiClient = d
   const userDto = isLegacyLoginResponse(data) ? data.user : data;
 
   return {
+    authToken: "auth_token" in data ? data.auth_token : undefined,
+    expiresIn: "expires_in" in data ? data.expires_in : undefined,
     user: toAuthenticatedUser(userDto),
   };
 }

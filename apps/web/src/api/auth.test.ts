@@ -8,7 +8,7 @@ describe("auth api", () => {
     vi.unstubAllGlobals();
   });
 
-  it("logs in with username and password using cookie credentials and csrf", async () => {
+  it("logs in with username and password using token credentials and csrf", async () => {
     setCsrfToken("csrf-token");
     const response = {
       id: 7,
@@ -43,7 +43,7 @@ describe("auth api", () => {
     });
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(String(url)).toContain("/auth/login");
+    expect(String(url)).toContain("/auth/mobile-login");
     expect(options.headers.Authorization).toBeUndefined();
     expect(options.credentials).toBe("include");
     expect(options.headers["X-CSRFToken"]).toBe("csrf-token");

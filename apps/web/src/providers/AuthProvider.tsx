@@ -3,9 +3,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ApiClientError,
   clearCsrfToken,
+  clearStoredAuthToken,
   getCurrentUser,
   login as loginRequest,
   logout as logoutRequest,
+  setStoredAuthToken,
   setUnauthorizedHandler,
   type AuthenticatedUser,
   type LoginCredentials,
@@ -44,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logger.debug("auth", "Local session cleared", {
       event: "auth_session_cleared",
     });
+    clearStoredAuthToken();
     clearCsrfToken();
     setUser(null);
     setInitializationError(null);
@@ -89,6 +92,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (credentials: LoginCredentials) => {
       try {
         const result = await loginRequest(credentials);
+        if (result.authToken) {
+          setStoredAuthToken(result.authToken, credentials.remember === true);
+        }
         setUser(result.user);
         setInitializationError(null);
         queryClient.clear();
@@ -112,16 +118,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     const hadUser = Boolean(user);
+    if (hadUser) {
+      await logoutRequest().catch(() => undefined);
+    }
+
     clearLocalSession();
     logger.info("auth", "User logged out", {
       event: "auth_logout",
       hadUser,
       userId: user?.id ?? null,
     });
-
-    if (hadUser) {
-      await logoutRequest().catch(() => undefined);
-    }
   }, [clearLocalSession, user]);
 
   const hasPermission = useCallback(

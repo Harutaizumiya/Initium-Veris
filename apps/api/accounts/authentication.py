@@ -7,7 +7,9 @@ from accounts.services import AuthTokenService
 
 class CookieTokenAuthentication(BaseAuthentication):
     def authenticate(self, request):
-        token = request.COOKIES.get(settings.AUTH_TOKEN_COOKIE_NAME)
+        authorization = request.META.get("HTTP_AUTHORIZATION", "")
+        token = authorization.removeprefix("Bearer ").strip() if authorization.startswith("Bearer ") else None
+        token = token or request.COOKIES.get(settings.AUTH_TOKEN_COOKIE_NAME)
         if not token:
             return None
 
@@ -17,4 +19,4 @@ class CookieTokenAuthentication(BaseAuthentication):
         return auth_token.user, auth_token
 
     def authenticate_header(self, request):
-        return "Cookie"
+        return "Cookie, Bearer"

@@ -35,6 +35,10 @@ class ServiceAPIView(APIView):
             return
 
         django_request = getattr(request, "_request", request)
+        authorization = django_request.META.get("HTTP_AUTHORIZATION", "")
+        if authorization.startswith("Bearer "):
+            return
+
         self.csrf_check.process_request(django_request)
         reason = self.csrf_check.process_view(django_request, None, (), {})
         if reason:

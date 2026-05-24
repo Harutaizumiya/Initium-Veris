@@ -142,7 +142,7 @@ class AuthApiTests(TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json(), {"code": 4011, "message": "unauthenticated", "data": None})
 
-    def test_bearer_header_no_longer_authenticates(self):
+    def test_bearer_header_authenticates(self):
         token = "bearer-token"
         AuthToken.objects.create(
             user=self.user,
@@ -153,8 +153,37 @@ class AuthApiTests(TestCase):
 
         response = self.client.get("/api/auth/me", HTTP_AUTHORIZATION=f"Bearer {token}")
 
-        self.assertEqual(response.status_code, 401)
-        self.assertEqual(response.json(), {"code": 4011, "message": "unauthenticated", "data": None})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["username"], "operator")
+
+    def test_mobile_login_returns_bearer_token_without_csrf_cookie(self):
+        response = self.client.post(
+            "/api/auth/mobile-login",
+            {"username": "operator", "password": "correct-password"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["data"]
+        self.assertEqual(data["username"], "operator")
+        self.assertIsInstance(data["auth_token"], str)
+        self.assertGreater(len(data["auth_token"]), 20)
+        self.assertNotIn(settings.AUTH_TOKEN_COOKIE_NAME, response.cookies)
+
+    def test_bearer_state_change_skips_csrf(self):
+        token = "bearer-token"
+        AuthToken.objects.create(
+            user=self.user,
+            token_hash=AuthTokenService.hash_token(token),
+            issued_at=timezone.now(),
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        client = APIClient(enforce_csrf_checks=True)
+        response = client.post("/api/auth/logout", {}, format="json", HTTP_AUTHORIZATION=f"Bearer {token}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"], {"revoked": True})
 
     def test_csrf_endpoint_sets_readable_csrf_cookie(self):
         response = self.client.get("/api/auth/csrf")

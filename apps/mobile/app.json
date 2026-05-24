@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Initium Veris",
+    "slug": "initium-veris-mobile",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "scheme": "initiumveris",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.initiumveris.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#F9F9F9"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "允许 Initium Veris 使用相机扫描库存二维码。"
+        }
+      ]
+    ]
+  }
+}

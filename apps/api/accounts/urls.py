@@ -5,6 +5,7 @@ from accounts.views import (
     LoginView,
     LogoutView,
     MeView,
+    MobileLoginView,
     PermissionCollectionView,
     RoleCollectionView,
     RoleDetailView,
@@ -16,6 +17,7 @@ from accounts.views import (
 urlpatterns = [
     path("csrf", CsrfTokenView.as_view(), name="auth-csrf"),
     path("login", LoginView.as_view(), name="auth-login"),
+    path("mobile-login", MobileLoginView.as_view(), name="auth-mobile-login"),
     path("logout", LogoutView.as_view(), name="auth-logout"),
     path("me", MeView.as_view(), name="auth-me"),
     path("permissions", PermissionCollectionView.as_view(), name="auth-permissions"),

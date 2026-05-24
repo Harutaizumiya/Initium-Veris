@@ -4,10 +4,11 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "turbo dev --filter=web --filter=api",
+    "dev:mobile": "turbo dev --filter=mobile",
     "build": "turbo build --filter=@initium-veris/api-client --filter=web --filter=api",
     "test": "turbo test --filter=@initium-veris/api-client --filter=web --filter=api",
     "lint": "turbo lint --filter=@initium-veris/api-client --filter=web --filter=api",
-    "check-types": "turbo check-types --filter=@initium-veris/api-client --filter=web --filter=api",
+    "check-types": "turbo check-types --filter=@initium-veris/api-client --filter=web --filter=api --filter=mobile",
     "clean": "turbo clean --filter=web --filter=api"
   },
   "devDependencies": {

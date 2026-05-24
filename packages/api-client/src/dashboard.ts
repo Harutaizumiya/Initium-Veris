@@ -43,6 +43,7 @@ export interface DashboardData {
 }
 
 const CATEGORY_COLORS = ["bg-primary", "bg-primary/80", "bg-primary/60", "bg-primary/40", "bg-primary/20"];
+const DEFAULT_CATEGORY_COLOR = "bg-primary";
 
 const EMPTY_DASHBOARD_DATA: DashboardData = {
   stats: [
@@ -212,7 +213,7 @@ function toDashboardData(dto: DashboardOverviewDto): DashboardData {
     categories: dto.category_inventory_distribution.map((category, index) => ({
       name: category.category,
       percentage: Math.round(category.ratio * 1000) / 10,
-      color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+      color: CATEGORY_COLORS[index % CATEGORY_COLORS.length] ?? DEFAULT_CATEGORY_COLOR,
     })),
     urgentItems: dto.top_near_expiry_batches.slice(0, 5).map(toUrgentItem),
     lastUpdatedAt: formatUpdatedAt(),

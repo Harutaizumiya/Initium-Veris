@@ -71,6 +71,28 @@ class LoginView(ServiceAPIView):
         return response
 
 
+class MobileLoginView(ServiceAPIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def enforce_csrf(self, request):
+        return
+
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = AuthTokenService.login(
+            request=request,
+            username=serializer.validated_data["username"],
+            password=serializer.validated_data["password"],
+            remember_me=serializer.validated_data["remember_me"],
+        )
+        output = AuthUserSerializer(result["user"]).data
+        output["auth_token"] = result["token"]
+        output["expires_in"] = result["expires_in"]
+        return success_response(output)
+
+
 class LogoutView(ServiceAPIView):
     def post(self, request):
         result = AuthTokenService.logout(getattr(request, "auth", None))

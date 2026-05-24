@@ -1,0 +1,35 @@
+{
+  "name": "mobile",
+  "private": true,
+  "version": "0.0.0",
+  "main": "expo/AppEntry",
+  "scripts": {
+    "dev": "expo start",
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "tsc --noEmit",
+    "clean": "node -e \"require('node:fs').rmSync('.expo',{ recursive: true, force: true })\""
+  },
+  "dependencies": {
+    "@initium-veris/api-client": "workspace:*",
+    "@tanstack/react-query": "^5.100.9",
+    "expo": "^56.0.0",
+    "expo-camera": "^56.0.7",
+    "expo-status-bar": "^56.0.4",
+    "lucide-react-native": "^0.546.0",
+    "react": "^19.2.3",
+    "react-native": "^0.85.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "^15.15.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "hermes-compiler": "^250829098.0.2",
+    "typescript": "~6.0.3"
+  }
+}

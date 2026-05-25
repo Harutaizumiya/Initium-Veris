@@ -4,6 +4,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "turbo dev --filter=web --filter=api",
+    "dev:debug": "pnpm --filter web dev:debug",
     "dev:mobile": "turbo dev --filter=mobile",
     "build": "turbo build --filter=@initium-veris/api-client --filter=web --filter=api",
     "test": "turbo test --filter=@initium-veris/api-client --filter=web --filter=api",

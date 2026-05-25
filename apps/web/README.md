@@ -17,6 +17,20 @@ pnpm dev
 pnpm --filter web dev
 ```
 
+如果需要前端 debug 模式：
+
+```bash
+pnpm dev:debug
+```
+
+等价于：
+
+```bash
+pnpm --filter web dev:debug
+```
+
+debug 模式会以 `vite --mode debug` 启动，前端日志默认开启，便于在页面右上角日志面板和浏览器控制台排查接口、认证和交互问题。
+
 ## 环境变量
 
 参考 [.env.example](.env.example)：

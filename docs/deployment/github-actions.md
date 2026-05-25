@@ -27,8 +27,10 @@
 工作流假设服务器已有：
 
 - systemd 服务：`initium-veris-api.service`
-- 环境文件：`/opt/initium-veris-api/.env`
+- 环境文件：`/opt/Initium-Veris/apps/api/.env`
 - Docker 可用
+
+生产环境不应设置 `DJANGO_DEBUG=1`。后端默认关闭 Django Debug，本地开发脚本会显式开启。
 
 每次部署会在服务器执行：
 

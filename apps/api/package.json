@@ -2,7 +2,7 @@
   "name": "api",
   "private": true,
   "scripts": {
-    "dev": "set UV_CACHE_DIR=.uv-cache&& uv run python manage.py runserver",
+    "dev": "set DJANGO_DEBUG=1&& set UV_CACHE_DIR=.uv-cache&& uv run python manage.py runserver",
     "build": "python -c \"print('No build step for api')\"",
     "test": "set UV_CACHE_DIR=.uv-cache&& uv run python manage.py test",
     "lint": "set UV_CACHE_DIR=.uv-cache&& uv run python manage.py check",

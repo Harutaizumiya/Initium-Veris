@@ -46,6 +46,7 @@ uv sync
 
 ```bash
 pnpm dev
+pnpm dev:debug
 pnpm build
 pnpm test
 pnpm lint
@@ -55,6 +56,8 @@ pnpm check-types
 说明：
 
 - `pnpm dev` 通过 Turborepo 同时启动 `apps/web` 和 `apps/api`
+- `pnpm dev:debug` 只启动前端 debug 模式，相当于 `pnpm --filter web dev:debug`
+- `pnpm --filter api dev` 会为本地 Django 显式设置 `DJANGO_DEBUG=1`；生产环境默认关闭 Django Debug
 - `pnpm build` 当前主要构建前端；后端保留占位构建任务以纳入统一编排
 - `apps/api` 的 Python 依赖由 `uv` 管理，真实依赖源仍是 `pyproject.toml`
 

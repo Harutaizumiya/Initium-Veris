@@ -23,7 +23,7 @@ def bool_from_env(name: str, default: bool) -> bool:
 
 DATABASE_URL = get_database_url()
 SECRET_KEY = "dev-secret-key"
-DEBUG = True
+DEBUG = bool_from_env("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [

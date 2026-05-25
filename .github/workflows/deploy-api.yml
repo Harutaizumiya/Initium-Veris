@@ -19,7 +19,7 @@ jobs:
     env:
       REPO_URL: https://github.com/Harutaizumiya/Initium-Veris.git
       DEPLOY_BRANCH: main
-      APP_ROOT: /opt/initium-veris-api
+      APP_ROOT: /opt/Initium-Veris
       SERVICE_NAME: initium-veris-api.service
       IMAGE_NAME: initium-veris-api:latest
 
@@ -48,8 +48,7 @@ jobs:
             "APP_ROOT='$APP_ROOT' DEPLOY_BRANCH='$DEPLOY_BRANCH' GH_DEPLOY_TOKEN_B64='$GH_DEPLOY_TOKEN_B64' IMAGE_NAME='$IMAGE_NAME' REPO_URL='$REPO_URL' SERVICE_NAME='$SERVICE_NAME' bash -s" <<'REMOTE'
           set -euo pipefail
 
-          SRC_DIR="$APP_ROOT/src"
-          HEALTH_URL="http://127.0.0.1:8000/api/auth/me"
+          HEALTH_URL="http://127.0.0.1:8000/api/ping"
           GH_DEPLOY_TOKEN=""
 
           if [ -n "${GH_DEPLOY_TOKEN_B64:-}" ]; then
@@ -61,27 +60,36 @@ jobs:
             git_auth=(-c "http.https://github.com/.extraheader=AUTHORIZATION: bearer $GH_DEPLOY_TOKEN")
           fi
 
-          mkdir -p "$APP_ROOT"
-
-          if [ -d "$SRC_DIR/.git" ]; then
-            git -C "$SRC_DIR" remote set-url origin "$REPO_URL"
-            git "${git_auth[@]}" -C "$SRC_DIR" fetch --prune origin "$DEPLOY_BRANCH"
-            git -C "$SRC_DIR" reset --hard "origin/$DEPLOY_BRANCH"
+          if [ -d "$APP_ROOT/.git" ]; then
+            git -C "$APP_ROOT" remote set-url origin "$REPO_URL"
+            git "${git_auth[@]}" -C "$APP_ROOT" fetch --prune origin "$DEPLOY_BRANCH"
+            git -C "$APP_ROOT" reset --hard "origin/$DEPLOY_BRANCH"
           else
-            rm -rf "$SRC_DIR"
-            git "${git_auth[@]}" clone --branch "$DEPLOY_BRANCH" --single-branch "$REPO_URL" "$SRC_DIR"
+            echo "$APP_ROOT is not a Git repository. Clone the repository there before deploying." >&2
+            exit 1
           fi
 
-          docker build -t "$IMAGE_NAME" "$SRC_DIR/apps/api"
+          docker build -t "$IMAGE_NAME" "$APP_ROOT/apps/api"
           systemctl daemon-reload
           systemctl restart "$SERVICE_NAME"
           systemctl is-active --quiet "$SERVICE_NAME"
 
-          http_status="$(curl -sS -o /dev/null -w '%{http_code}' "$HEALTH_URL")"
-          if [ "$http_status" != "200" ] && [ "$http_status" != "401" ]; then
-            echo "Unexpected health status: $http_status" >&2
+          http_status="000"
+          http_body=""
+          for _ in $(seq 1 20); do
+            http_body="$(curl -sS -w '\n%{http_code}' "$HEALTH_URL" || true)"
+            http_status="$(printf '%s' "$http_body" | tail -n 1)"
+            http_body="$(printf '%s' "$http_body" | sed '$d')"
+            if [ "$http_status" = "200" ] && [ "$http_body" = "pong" ]; then
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$http_status" != "200" ] || [ "$http_body" != "pong" ]; then
+            echo "Unexpected health response: status=$http_status body=$http_body" >&2
             exit 1
           fi
 
-          echo "Deployment finished. Health status: $http_status"
+          echo "Deployment finished. Health response: $http_body"
           REMOTE

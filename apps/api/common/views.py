@@ -1,3 +1,4 @@
+from django.http import HttpResponse
 from django.middleware.csrf import CsrfViewMiddleware
 from django.shortcuts import render
 from django.views import View
@@ -21,6 +22,11 @@ class _CsrfCheck(CsrfViewMiddleware):
 class HomePageView(View):
     def get(self, request):
         return render(request, "index.html")
+
+
+class PingView(View):
+    def get(self, request):
+        return HttpResponse("pong", content_type="text/plain")
 
 
 class ServiceAPIView(APIView):

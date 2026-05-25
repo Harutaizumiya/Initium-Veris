@@ -10,7 +10,7 @@
 
 ## 认证说明
 
-- 当前除首页 `/` 和认证接口外，业务 API 均要求登录。
+- 当前除首页 `/`、健康检查接口和认证接口外，业务 API 均要求登录。
 - 认证凭证由后端写入 HttpOnly cookie：`origin_auth_token`。
 - cookie 中的 token 为不含业务含义的 opaque 字符串；前端不得读取或解析 token 内容。
 - 登录 token 默认 8 小时过期；登录请求传 `remember_me = true` 时延长为 3 天。暂不提供 refresh token。
@@ -21,6 +21,18 @@
 - 商品、批次、库存操作和扫码审计会记录当前登录用户；当前响应体暂不返回操作者字段。
 - 业务 API 使用组件级权限控制；`is_superuser=true` 自动拥有全部权限。
 - 超级管理员可通过 `/auth/permissions`、`/auth/roles`、`/auth/users` 配置角色、权限和用户授权。
+
+## 健康检查
+
+### GET `/ping`
+
+用于快速确认 Django/Gunicorn 服务已启动并能响应 HTTP 请求。该接口不需要登录，不访问数据库，不使用统一 JSON 响应结构。
+
+响应：
+
+```text
+pong
+```
 
 ## 统一响应结构
 

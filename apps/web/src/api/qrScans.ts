@@ -3,14 +3,19 @@ import { logger } from "../lib/logger";
 import {
   createQrScan as createSharedQrScan,
   createQrScanBulk as createSharedQrScanBulk,
+  listQrScans as listSharedQrScans,
   type QrScanBulkInput,
   type QrScanInput,
+  type QrScanListParams,
 } from "@initium-veris/api-client";
 
 export type {
+  QrScanAuditItemDto,
+  QrScanAuditListDto,
   QrScanBulkInput,
   QrScanBulkResultDto,
   QrScanInput,
+  QrScanListParams,
   QrScanResultDto,
   QrScanSource,
   QrScanStatus,
@@ -58,4 +63,8 @@ export async function createQrScanBulk(input: QrScanBulkInput) {
     });
     throw error;
   }
+}
+
+export async function listQrScans(params: QrScanListParams = {}) {
+  return listSharedQrScans(params);
 }

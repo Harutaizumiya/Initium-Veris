@@ -9,4 +9,4 @@ export {
   toInventoryRecord,
   toInventoryRelatedBatch,
 } from "./inventory";
-export { createQrScan, createQrScanBulk } from "./qrScans";
+export { createQrScan, createQrScanBulk, listQrScans } from "./qrScans";

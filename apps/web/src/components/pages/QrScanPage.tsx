@@ -1,18 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { CheckCircle2, ClipboardPaste, Keyboard, LoaderCircle, QrCode, RotateCcw, ScanLine } from "lucide-react";
-import { ApiClientError, createQrScan, type QrScanResultDto, type QrScanSource } from "../../api";
+import { ApiClientError, createQrScan, listQrScans, queryKeys, type QrScanAuditItemDto, type QrScanResultDto } from "../../api";
 import { cn } from "../../lib/utils";
 import { createClientScanId, getQrScanStatusMeta } from "../../lib/qrScan";
 import { getErrorDebugDetail, OperationFeedbackToast, type OperationFeedbackState } from "../common/OperationFeedbackToast";
-import { OperationAlert } from "../common/OperationAlert";
 
-interface RecentScanEntry extends QrScanResultDto {
-  scannedAt: string;
-  source: QrScanSource;
-}
+type ScanWindowDays = 1 | 7;
 
-const MAX_RECENT_SCANS = 8;
+const DEFAULT_SCAN_WINDOW_DAYS: ScanWindowDays = 1;
+const DEBUG_SCAN_WINDOW_DAYS: ScanWindowDays = 7;
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("zh-CN", {
@@ -43,35 +41,37 @@ function getErrorMessage(error: unknown) {
   return "扫码审计提交失败，请稍后重试。";
 }
 
-const QrScanResultPanel: React.FC<{ result: QrScanResultDto }> = ({ result }) => {
-  const statusMeta = getQrScanStatusMeta(result.status);
-
-  return (
-    <OperationAlert
-      type={statusMeta.alertType}
-      title={statusMeta.label}
-      description={result.message}
-      showIcon
-      className="ambient-shadow"
-    />
-  );
-};
+function getScanWindowLabel(days: ScanWindowDays) {
+  return days === DEBUG_SCAN_WINDOW_DAYS ? "最近 7 天" : "今日";
+}
 
 export const QrScanPage: React.FC = () => {
   const [qrInput, setQrInput] = useState("");
-  const [source, setSource] = useState<QrScanSource>("handheld");
-  const [deviceId, setDeviceId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<QrScanResultDto | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [recentScans, setRecentScans] = useState<RecentScanEntry[]>([]);
+  const [scanWindowDays, setScanWindowDays] = useState<ScanWindowDays>(DEFAULT_SCAN_WINDOW_DAYS);
   const [feedback, setFeedback] = useState<OperationFeedbackState | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const queryClient = useQueryClient();
+  const isDebugMode = import.meta.env.DEV;
+
+  const scanHistoryQuery = useQuery({
+    queryKey: queryKeys.qrScans.list({ days: scanWindowDays }),
+    queryFn: () => listQrScans({ days: scanWindowDays }),
+  });
+  const recentScans = scanHistoryQuery.data?.items ?? [];
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (!isDebugMode && scanWindowDays !== DEFAULT_SCAN_WINDOW_DAYS) {
+      setScanWindowDays(DEFAULT_SCAN_WINDOW_DAYS);
+    }
+  }, [scanWindowDays, isDebugMode]);
 
   const resetForm = useCallback(() => {
     setQrInput("");
@@ -89,23 +89,17 @@ export const QrScanPage: React.FC = () => {
       return;
     }
 
-    const scannedAt = new Date().toISOString();
     setSubmitting(true);
     setError(null);
 
     try {
       const scanResult = await createQrScan({
         qr,
-        source,
-        deviceId: deviceId.trim() || null,
         clientScanId: createClientScanId(),
-        scannedAt,
+        scannedAt: new Date().toISOString(),
       });
       setResult(scanResult);
-      setRecentScans((currentScans) => [
-        { ...scanResult, scannedAt, source },
-        ...currentScans.slice(0, MAX_RECENT_SCANS - 1),
-      ]);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.qrScans.all });
       setFeedback({
         type: scanResult.status === "invalid" || scanResult.status === "revoked" || scanResult.status === "not_found" ? "warning" : "success",
         title: "扫码审计已提交",
@@ -126,7 +120,7 @@ export const QrScanPage: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [deviceId, qrInput, source]);
+  }, [qrInput, queryClient]);
 
   return (
     <>
@@ -135,7 +129,7 @@ export const QrScanPage: React.FC = () => {
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">扫码审计</h2>
-          <p className="mt-1 text-on-surface-variant">二维码效期状态由后端审计接口返回。</p>
+          <p className="mt-1 text-on-surface-variant">二维码效期状态由后端审计接口返回，审计归属当前登录用户。</p>
         </div>
         <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500">
           <ScanLine size={16} />
@@ -152,7 +146,7 @@ export const QrScanPage: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-headline text-xl font-bold text-on-surface">审计提交</h3>
-                <p className="mt-1 text-sm text-on-surface-variant">提交后清空输入并记录最近结果。</p>
+                <p className="mt-1 text-sm text-on-surface-variant">提交后清空输入并刷新后端审计记录。</p>
               </div>
             </div>
 
@@ -173,33 +167,6 @@ export const QrScanPage: React.FC = () => {
                 />
               </div>
             </label>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-on-surface">来源</span>
-                <select
-                  value={source}
-                  onChange={(event) => setSource(event.target.value as QrScanSource)}
-                  disabled={submitting}
-                  className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <option value="handheld">外接扫码枪</option>
-                  <option value="web_camera">网页输入</option>
-                  <option value="mobile_camera">移动端相机</option>
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-on-surface">设备 ID</span>
-                <input
-                  value={deviceId}
-                  onChange={(event) => setDeviceId(event.target.value)}
-                  disabled={submitting}
-                  className="w-full rounded-2xl border border-slate-200 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
-                  placeholder="可选"
-                />
-              </label>
-            </div>
 
             {error ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
@@ -238,36 +205,33 @@ export const QrScanPage: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.22 }}
-                className="space-y-4"
+                className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6"
               >
-                <QrScanResultPanel result={result} />
-                <div className="ambient-shadow rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <h3 className="font-headline text-xl font-bold text-on-surface">本次结果</h3>
-                    <span className={cn("rounded-full border px-3 py-1 text-xs font-bold", getQrScanStatusMeta(result.status).badgeClassName)}>
-                      {getQrScanStatusMeta(result.status).label}
-                    </span>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h3 className="font-headline text-xl font-bold text-on-surface">本次结果</h3>
+                  <span className={cn("rounded-full border px-3 py-1 text-xs font-bold", getQrScanStatusMeta(result.status).badgeClassName)}>
+                    {getQrScanStatusMeta(result.status).label}
+                  </span>
+                </div>
+                <div className="grid gap-4 text-sm text-on-surface-variant md:grid-cols-2">
+                  <div>
+                    <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">审计 ID</span>
+                    <span className="mt-1 block font-mono text-on-surface">{result.auditId}</span>
                   </div>
-                  <div className="grid gap-4 text-sm text-on-surface-variant md:grid-cols-2">
-                    <div>
-                      <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">审计 ID</span>
-                      <span className="mt-1 block font-mono text-on-surface">{result.auditId}</span>
-                    </div>
-                    <div>
-                      <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">批次</span>
-                      <span className="mt-1 block font-semibold text-on-surface">{result.batchCode ?? "-"}</span>
-                    </div>
-                    <div>
-                      <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">货物</span>
-                      <span className="mt-1 block font-semibold text-on-surface">{result.productName ?? "-"}</span>
-                    </div>
-                    <div>
-                      <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">效期信息</span>
-                      <span className="mt-1 block font-semibold text-on-surface">
-                        {result.expireDate ?? "-"}
-                        {result.remainingDays === null ? "" : ` · ${result.remainingDays} 天`}
-                      </span>
-                    </div>
+                  <div>
+                    <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">批次</span>
+                    <span className="mt-1 block font-semibold text-on-surface">{result.batchCode ?? "-"}</span>
+                  </div>
+                  <div>
+                    <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">货物</span>
+                    <span className="mt-1 block font-semibold text-on-surface">{result.productName ?? "-"}</span>
+                  </div>
+                  <div>
+                    <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">效期信息</span>
+                    <span className="mt-1 block font-semibold text-on-surface">
+                      {result.expireDate ?? "-"}
+                      {result.remainingDays === null ? "" : ` · ${result.remainingDays} 天`}
+                    </span>
                   </div>
                 </div>
               </motion.div>
@@ -289,40 +253,38 @@ export const QrScanPage: React.FC = () => {
           </AnimatePresence>
 
           <section className="ambient-shadow overflow-hidden rounded-3xl border border-surface-container/10 bg-surface-container-lowest">
-            <div className="border-b border-surface-container-high p-6">
-              <h3 className="font-headline text-xl font-bold text-on-surface">最近扫描</h3>
-              <p className="mt-1 text-sm text-on-surface-variant">仅展示后端审计结果，不展示二维码 token。</p>
-            </div>
-            {recentScans.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-surface-container-low/50">
-                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">时间</th>
-                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">批次</th>
-                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">状态</th>
-                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">审计 ID</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-surface-container-low">
-                    {recentScans.map((scan) => {
-                      const statusMeta = getQrScanStatusMeta(scan.status);
-                      return (
-                        <tr key={scan.auditId} className="transition-colors hover:bg-surface-container-low/30">
-                          <td className="px-6 py-5 text-sm text-on-surface-variant">{formatDateTime(scan.scannedAt)}</td>
-                          <td className="px-6 py-5 text-sm font-semibold text-on-surface">{scan.batchCode ?? "-"}</td>
-                          <td className="px-6 py-5">
-                            <span className={cn("inline-flex rounded-full border px-3 py-1 text-xs font-bold", statusMeta.badgeClassName)}>
-                              {statusMeta.label}
-                            </span>
-                          </td>
-                          <td className="px-6 py-5 font-mono text-xs text-on-surface-variant">{scan.auditId}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+            <div className="flex flex-col gap-4 border-b border-surface-container-high p-6 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="font-headline text-xl font-bold text-on-surface">最近扫描</h3>
+                <p className="mt-1 text-sm text-on-surface-variant">{getScanWindowLabel(scanWindowDays)}所有扫码记录，不展示二维码 token。</p>
               </div>
+              {isDebugMode ? (
+                <div className="inline-flex rounded-2xl border border-surface-container bg-surface-container-low p-1">
+                  {[DEFAULT_SCAN_WINDOW_DAYS, DEBUG_SCAN_WINDOW_DAYS].map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => setScanWindowDays(days)}
+                      className={cn(
+                        "rounded-xl px-3 py-2 text-xs font-bold transition-colors",
+                        scanWindowDays === days ? "bg-primary text-white shadow-sm" : "text-on-surface-variant hover:text-on-surface",
+                      )}
+                    >
+                      {getScanWindowLabel(days)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            {scanHistoryQuery.isLoading ? (
+              <div className="flex items-center justify-center gap-3 px-6 py-12 text-sm text-on-surface-variant">
+                <LoaderCircle size={18} className="animate-spin" />
+                正在加载扫码记录...
+              </div>
+            ) : scanHistoryQuery.error ? (
+              <div className="px-6 py-12 text-center text-sm text-red-600">扫码记录加载失败：{getErrorMessage(scanHistoryQuery.error)}</div>
+            ) : recentScans.length > 0 ? (
+              <QrScanHistoryTable scans={recentScans} />
             ) : (
               <div className="px-6 py-12 text-center text-sm text-on-surface-variant">暂无扫描记录。</div>
             )}
@@ -333,3 +295,37 @@ export const QrScanPage: React.FC = () => {
     </>
   );
 };
+
+const QrScanHistoryTable: React.FC<{ scans: QrScanAuditItemDto[] }> = ({ scans }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-left">
+      <thead>
+        <tr className="bg-surface-container-low/50">
+          <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">时间</th>
+          <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">批次</th>
+          <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">状态</th>
+          <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">扫码用户</th>
+          <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-on-surface-variant">审计 ID</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-surface-container-low">
+        {scans.map((scan) => {
+          const statusMeta = getQrScanStatusMeta(scan.status);
+          return (
+            <tr key={scan.auditId} className="transition-colors hover:bg-surface-container-low/30">
+              <td className="px-6 py-5 text-sm text-on-surface-variant">{formatDateTime(scan.scannedAt)}</td>
+              <td className="px-6 py-5 text-sm font-semibold text-on-surface">{scan.batchCode ?? "-"}</td>
+              <td className="px-6 py-5">
+                <span className={cn("inline-flex rounded-full border px-3 py-1 text-xs font-bold", statusMeta.badgeClassName)}>
+                  {statusMeta.label}
+                </span>
+              </td>
+              <td className="px-6 py-5 text-sm text-on-surface-variant">{scan.scannerUser ?? "-"}</td>
+              <td className="px-6 py-5 font-mono text-xs text-on-surface-variant">{scan.auditId}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+);

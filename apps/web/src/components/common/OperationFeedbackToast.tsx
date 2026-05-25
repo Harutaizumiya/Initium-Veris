@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { OperationAlert, type OperationAlertType } from "./OperationAlert";
 
@@ -38,8 +38,14 @@ export const OperationFeedbackToast: React.FC<OperationFeedbackToastProps> = ({
   onClose,
   duration = 3000,
 }) => {
+  const [isInteracting, setIsInteracting] = useState(false);
+
   useEffect(() => {
     if (!open) {
+      return;
+    }
+
+    if (isInteracting) {
       return;
     }
 
@@ -48,7 +54,13 @@ export const OperationFeedbackToast: React.FC<OperationFeedbackToastProps> = ({
     }, duration);
 
     return () => window.clearTimeout(timer);
-  }, [duration, onClose, open]);
+  }, [duration, isInteracting, onClose, open]);
+
+  useEffect(() => {
+    if (!open) {
+      setIsInteracting(false);
+    }
+  }, [open]);
 
   return (
     <AnimatePresence>
@@ -60,7 +72,17 @@ export const OperationFeedbackToast: React.FC<OperationFeedbackToastProps> = ({
           transition={{ duration: 0.24, ease: "easeOut" }}
           className="pointer-events-none fixed left-1/2 top-6 z-[110] w-full max-w-xl -translate-x-1/2 px-4"
         >
-          <div className="pointer-events-auto space-y-3">
+          <div
+            className="pointer-events-auto space-y-3"
+            onMouseEnter={() => setIsInteracting(true)}
+            onMouseLeave={() => setIsInteracting(false)}
+            onFocusCapture={() => setIsInteracting(true)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setIsInteracting(false);
+              }
+            }}
+          >
             <OperationAlert
               type={feedback.type}
               title={feedback.title}

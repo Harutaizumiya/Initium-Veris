@@ -543,6 +543,17 @@ class QrScanServiceTests(SimpleTestCase):
         self.assertEqual(audit.failure_reason, "invalid_format")
         audit.save.assert_called_once()
 
+    @patch("inventory.services.transaction.atomic")
+    @patch("inventory.services.QrScanAuditLog.objects.create")
+    def test_scan_without_source_defaults_to_web_camera(self, mock_create_audit, mock_atomic):
+        mock_atomic.return_value.__enter__.return_value = None
+        audit = Mock(id="scan_1")
+        mock_create_audit.return_value = audit
+
+        QrScanService.scan_qr({"qr": "bad", "source": None}, {})
+
+        self.assertEqual(mock_create_audit.call_args.kwargs["source"], "web_camera")
+
     @override_settings(QR_TOKEN_PEPPER="pepper")
     @patch("inventory.services.BatchQrCredential.objects.filter")
     def test_scan_with_unknown_token_returns_invalid(self, mock_filter):

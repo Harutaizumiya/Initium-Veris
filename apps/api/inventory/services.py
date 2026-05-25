@@ -893,10 +893,13 @@ class QrCredentialService:
 
 class QrScanService:
     pending_message = "pending"
+    default_source = "web_camera"
+    max_list_items = 1000
 
     @classmethod
     def scan_qr(cls, data: dict, context: dict | None = None) -> dict:
         context = context or {}
+        data = {**data, "source": data.get("source") or cls.default_source}
         try:
             duplicate = cls._find_duplicate(data)
             if duplicate is not None:
@@ -913,6 +916,20 @@ class QrScanService:
     @classmethod
     def scan_bulk(cls, items: list[dict], context: dict | None = None) -> dict:
         return {"items": [cls.scan_qr(item, context) for item in items]}
+
+    @classmethod
+    def list_scans(cls, *, days: int = 1) -> dict:
+        start_date = timezone.localdate() - timedelta(days=max(days, 1) - 1)
+        start_at = timezone.make_aware(
+            datetime.combine(start_date, time.min),
+            timezone.get_current_timezone(),
+        )
+        audits = (
+            QrScanAuditLog.objects.select_related("batch__product", "scanner_user_account")
+            .filter(scanned_at_server__gte=start_at)
+            .order_by("-scanned_at_server", "-id")[: cls.max_list_items]
+        )
+        return {"items": [cls._audit_list_item(audit) for audit in audits]}
 
     @staticmethod
     def _generate_audit_id() -> str:
@@ -1096,7 +1113,7 @@ class QrScanService:
         remaining_days = None
         if audit.batch_id is not None:
             try:
-                batch = Batch.objects.select_related("product").get(pk=audit.batch_id)
+                batch = audit.batch
             except Batch.DoesNotExist:
                 batch = None
             if batch is not None:
@@ -1113,6 +1130,19 @@ class QrScanService:
             "remainingDays": remaining_days,
         }
         return cls._public_result(result, audit.id, client_scan_id=client_scan_id)
+
+    @classmethod
+    def _audit_list_item(cls, audit) -> dict:
+        payload = cls._result_from_audit(audit, client_scan_id=audit.client_scan_id)
+        payload["scannedAt"] = audit.scanned_at_server
+        payload["scannerUser"] = cls._audit_scanner_name(audit)
+        return payload
+
+    @staticmethod
+    def _audit_scanner_name(audit) -> str | None:
+        if getattr(audit, "scanner_user_account", None) is not None:
+            return str(audit.scanner_user_account)
+        return audit.scanner_user
 
 
 class BatchOperationService:

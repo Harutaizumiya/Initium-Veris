@@ -25,6 +25,8 @@ from inventory.schemas import (
     ProductUpdateSerializer,
     QrScanBulkRequestSerializer,
     QrScanBulkResultSerializer,
+    QrScanAuditListSerializer,
+    QrScanListQuerySerializer,
     QrScanRequestSerializer,
     QrScanResultSerializer,
 )
@@ -53,7 +55,7 @@ def paginated_payload(*, items, page: int, size: int, total: int):
 def qr_scan_payload(validated_data: dict) -> dict:
     return {
         "qr": validated_data["qr"],
-        "source": validated_data["source"],
+        "source": validated_data.get("source"),
         "device_id": validated_data.get("deviceId"),
         "client_scan_id": validated_data.get("clientScanId"),
         "scanned_at": validated_data.get("scannedAt"),
@@ -265,7 +267,14 @@ class BatchLabelPayloadView(ServiceAPIView):
 
 
 class QrScanCollectionView(ServiceAPIView):
-    permission_map = {"POST": "qr_scans_create"}
+    permission_map = {"GET": "qr_scans_create", "POST": "qr_scans_create"}
+
+    def get(self, request):
+        query = QrScanListQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        result = QrScanService.list_scans(days=int(query.validated_data["days"]))
+        output = QrScanAuditListSerializer(result)
+        return success_response(output.data)
 
     def post(self, request):
         serializer = QrScanRequestSerializer(data=request.data)

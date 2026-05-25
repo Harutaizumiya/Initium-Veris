@@ -141,13 +141,13 @@ class BatchOperationListQuerySerializer(serializers.Serializer):
 
 class QrScanRequestSerializer(serializers.Serializer):
     qr = serializers.CharField()
-    source = serializers.ChoiceField(choices=QR_SCAN_SOURCES)
+    source = serializers.ChoiceField(required=False, choices=QR_SCAN_SOURCES, allow_blank=True, allow_null=True)
     deviceId = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     clientScanId = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     scannedAt = serializers.DateTimeField(required=False, allow_null=True)
 
     def validate(self, attrs):
-        for field in ("deviceId", "clientScanId"):
+        for field in ("source", "deviceId", "clientScanId"):
             if attrs.get(field) == "":
                 attrs[field] = None
         return attrs
@@ -155,6 +155,15 @@ class QrScanRequestSerializer(serializers.Serializer):
 
 class QrScanBulkRequestSerializer(serializers.Serializer):
     items = QrScanRequestSerializer(many=True, allow_empty=False)
+
+
+class QrScanListQuerySerializer(serializers.Serializer):
+    days = serializers.IntegerField(required=False, default=1)
+
+    def validate_days(self, value):
+        if value not in {1, 7}:
+            raise serializers.ValidationError("days must be 1 or 7")
+        return value
 
 
 class BatchLabelPayloadSerializer(serializers.Serializer):
@@ -180,6 +189,15 @@ class QrScanResultSerializer(serializers.Serializer):
 
 class QrScanBulkResultSerializer(serializers.Serializer):
     items = QrScanResultSerializer(many=True)
+
+
+class QrScanAuditItemSerializer(QrScanResultSerializer):
+    scannedAt = serializers.DateTimeField()
+    scannerUser = serializers.CharField(allow_null=True)
+
+
+class QrScanAuditListSerializer(serializers.Serializer):
+    items = QrScanAuditItemSerializer(many=True)
 
 
 class ProductSummarySerializer(serializers.ModelSerializer):

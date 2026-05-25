@@ -644,6 +644,33 @@ class InventoryApiTests(SimpleTestCase):
         self.assertEqual(mock_scan_qr.call_args.args[1]["user_agent"], "api-test")
         self.assertEqual(mock_scan_qr.call_args.args[1]["scanner_user_id"], 123)
 
+    @patch("inventory.views.QrScanService.scan_qr")
+    def test_qr_scan_accepts_missing_source_for_user_based_audit(self, mock_scan_qr):
+        mock_scan_qr.return_value = {
+            "auditId": "scan_abc",
+            "batchCode": "BATCH-001",
+            "productName": "Milk",
+            "status": "valid",
+            "message": "该批次仍在效期内",
+            "expireDate": "2026-05-06",
+            "remainingDays": 9,
+            "clientScanId": "client-1",
+        }
+
+        response = self.client.post(
+            "/api/qr-scans",
+            {
+                "qr": "OB1|BATCH-001|token",
+                "clientScanId": "client-1",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        scan_payload = mock_scan_qr.call_args.args[0]
+        self.assertIsNone(scan_payload["source"])
+        self.assertIsNone(scan_payload["device_id"])
+
     def test_qr_scan_rejects_invalid_source(self):
         response = self.client.post(
             "/api/qr-scans",
@@ -699,6 +726,31 @@ class InventoryApiTests(SimpleTestCase):
         self.assertEqual(response.json()["data"]["items"][1]["status"], "invalid")
         mock_scan_bulk.assert_called_once()
         self.assertEqual(mock_scan_bulk.call_args.args[1]["scanner_user_id"], 123)
+
+    @patch("inventory.views.QrScanService.list_scans")
+    def test_qr_scan_list_returns_recent_audit_items(self, mock_list_scans):
+        mock_list_scans.return_value = {
+            "items": [
+                {
+                    "auditId": "scan_1",
+                    "batchCode": "BATCH-001",
+                    "productName": "Milk",
+                    "status": "expired",
+                    "message": "该批次已过期",
+                    "expireDate": "2026-05-06",
+                    "remainingDays": -1,
+                    "clientScanId": "client-1",
+                    "scannedAt": "2026-05-25T10:30:00+08:00",
+                    "scannerUser": "api-test",
+                }
+            ]
+        }
+
+        response = self.client.get("/api/qr-scans", {"days": 7})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"]["items"][0]["scannerUser"], "api-test")
+        mock_list_scans.assert_called_once_with(days=7)
 
     @patch("inventory.views.BatchService.create_batch")
     def test_create_batch_translates_product_not_found(self, mock_create_batch):

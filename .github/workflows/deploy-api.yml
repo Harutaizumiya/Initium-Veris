@@ -1,0 +1,87 @@
+name: Deploy API
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy backend to server
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      REPO_URL: https://github.com/Harutaizumiya/Initium-Veris.git
+      DEPLOY_BRANCH: main
+      APP_ROOT: /opt/initium-veris-api
+      SERVICE_NAME: initium-veris-api.service
+      IMAGE_NAME: initium-veris-api:latest
+
+    steps:
+      - name: Deploy over SSH
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT || '22' }}
+          SERVER_USER: ${{ secrets.SERVER_USER || 'root' }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          GH_DEPLOY_TOKEN: ${{ secrets.GH_DEPLOY_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          : "${SERVER_HOST:?SERVER_HOST secret is required}"
+          : "${SERVER_SSH_KEY:?SERVER_SSH_KEY secret is required}"
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SERVER_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$SERVER_PORT" "$SERVER_HOST" >> ~/.ssh/known_hosts
+
+          GH_DEPLOY_TOKEN_B64="$(printf '%s' "$GH_DEPLOY_TOKEN" | base64 -w0)"
+
+          ssh -i ~/.ssh/deploy_key -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
+            "APP_ROOT='$APP_ROOT' DEPLOY_BRANCH='$DEPLOY_BRANCH' GH_DEPLOY_TOKEN_B64='$GH_DEPLOY_TOKEN_B64' IMAGE_NAME='$IMAGE_NAME' REPO_URL='$REPO_URL' SERVICE_NAME='$SERVICE_NAME' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          SRC_DIR="$APP_ROOT/src"
+          HEALTH_URL="http://127.0.0.1:8000/api/auth/me"
+          GH_DEPLOY_TOKEN=""
+
+          if [ -n "${GH_DEPLOY_TOKEN_B64:-}" ]; then
+            GH_DEPLOY_TOKEN="$(printf '%s' "$GH_DEPLOY_TOKEN_B64" | base64 -d 2>/dev/null || true)"
+          fi
+
+          git_auth=()
+          if [ -n "$GH_DEPLOY_TOKEN" ]; then
+            git_auth=(-c "http.https://github.com/.extraheader=AUTHORIZATION: bearer $GH_DEPLOY_TOKEN")
+          fi
+
+          mkdir -p "$APP_ROOT"
+
+          if [ -d "$SRC_DIR/.git" ]; then
+            git -C "$SRC_DIR" remote set-url origin "$REPO_URL"
+            git "${git_auth[@]}" -C "$SRC_DIR" fetch --prune origin "$DEPLOY_BRANCH"
+            git -C "$SRC_DIR" reset --hard "origin/$DEPLOY_BRANCH"
+          else
+            rm -rf "$SRC_DIR"
+            git "${git_auth[@]}" clone --branch "$DEPLOY_BRANCH" --single-branch "$REPO_URL" "$SRC_DIR"
+          fi
+
+          docker build -t "$IMAGE_NAME" "$SRC_DIR/apps/api"
+          systemctl daemon-reload
+          systemctl restart "$SERVICE_NAME"
+          systemctl is-active --quiet "$SERVICE_NAME"
+
+          http_status="$(curl -sS -o /dev/null -w '%{http_code}' "$HEALTH_URL")"
+          if [ "$http_status" != "200" ] && [ "$http_status" != "401" ]; then
+            echo "Unexpected health status: $http_status" >&2
+            exit 1
+          fi
+
+          echo "Deployment finished. Health status: $http_status"
+          REMOTE

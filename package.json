@@ -14,5 +14,14 @@
   },
   "devDependencies": {
     "turbo": "^2.5.5"
+  },
+  "pnpm": {
+    "packageExtensions": {
+      "@expo/cli@54.0.24": {
+        "dependencies": {
+          "metro-runtime": "0.83.3"
+        }
+      }
+    }
   }
 }

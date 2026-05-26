@@ -9,3 +9,8 @@ script = ""
 name = "调试"
 icon = "debug"
 command = "pnpm dev:debug"
+
+[[actions]]
+name = "移动端"
+icon = "run"
+command = "pnpm --filter mobile dev"

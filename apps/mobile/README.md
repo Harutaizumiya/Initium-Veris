@@ -15,3 +15,4 @@ EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api pnpm --filter mobile dev
 ```
 
 On a physical device, use the LAN IP of the machine running Django, for example `http://192.168.1.10:8000/api`.
+Production builds must set `EXPO_PUBLIC_API_BASE_URL` explicitly.

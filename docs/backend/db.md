@@ -10,8 +10,10 @@
 - 时区：`Asia/Shanghai`
 - 认证 cookie：`origin_auth_token`
 - CSRF cookie：`csrftoken`
-- token pepper：`AUTH_TOKEN_PEPPER`，未配置时回退到 `SECRET_KEY`
-- QR pepper：`QR_TOKEN_PEPPER`，未配置时回退到 `SECRET_KEY`
+- Django secret：`DJANGO_SECRET_KEY`，生产环境必须显式配置
+- token pepper：`AUTH_TOKEN_PEPPER`，生产环境必须显式配置
+- QR pepper：`QR_TOKEN_PEPPER`，生产环境必须显式配置
+- 共享缓存：`REDIS_URL`，生产多 worker 部署建议配置；未配置时仅使用本地内存缓存
 
 ## Ownership
 

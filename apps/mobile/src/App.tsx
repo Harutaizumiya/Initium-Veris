@@ -88,7 +88,7 @@ declare const process:
 
 const API_BASE_URL =
   process?.env?.EXPO_PUBLIC_API_BASE_URL ||
-  (Platform.OS === "android" ? "http://47.98.36.24:8000/api" : "http://47.98.36.24:8000/api");
+  (Platform.OS === "android" ? "http://10.0.2.2:8000/api" : "http://localhost:8000/api");
 
 let mobileAuthToken: string | null = null;
 const mobileCookies = new Map<string, string>();

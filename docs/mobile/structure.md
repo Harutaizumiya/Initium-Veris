@@ -8,7 +8,7 @@
 - Android：`expo run:android`
 - iOS：`expo run:ios`
 - Web 预览：`expo start --web`
-- API 地址：`EXPO_PUBLIC_API_BASE_URL`，未设置时使用 `http://47.98.36.24:8000/api`
+- API 地址：`EXPO_PUBLIC_API_BASE_URL`，未设置时 Android 模拟器使用 `http://10.0.2.2:8000/api`，其他平台使用 `http://localhost:8000/api`
 
 ## Modules
 - App Shell：`AppShell` 管理登录态、一级底部导航、二级菜单、toast 和页面切换。

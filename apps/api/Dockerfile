@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir --timeout 180 -i https://pypi.tuna.tsinghua.edu.c
     "django-cors-headers>=4.9,<5.0" \
     "python-dotenv>=1.2,<2.0" \
     "psycopg[binary]>=3.3,<4.0" \
+    "redis>=5.0,<6.0" \
     "gunicorn>=23,<24"
 
 COPY . .

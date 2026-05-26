@@ -22,9 +22,22 @@ def bool_from_env(name: str, default: bool) -> bool:
 
 
 DATABASE_URL = get_database_url()
-SECRET_KEY = "dev-secret-key"
 DEBUG = bool_from_env("DJANGO_DEBUG", False)
-ALLOWED_HOSTS = ["*"]
+IS_TEST = "test" in sys.argv
+
+
+def required_env(name: str, *, development_default: str | None = None) -> str:
+    value = os.environ.get(name)
+    if value:
+        return value
+    if DEBUG or IS_TEST:
+        if development_default is not None:
+            return development_default
+    raise RuntimeError(f"{name} must be set when DJANGO_DEBUG is false")
+
+
+SECRET_KEY = required_env("DJANGO_SECRET_KEY", development_default="local-django-secret-key")
+ALLOWED_HOSTS = list_from_env("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
@@ -65,7 +78,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-if "test" in sys.argv:
+if IS_TEST:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -93,8 +106,8 @@ CSRF_TRUSTED_ORIGINS = list_from_env(
     ["http://localhost:3000", "http://127.0.0.1:3000"],
 )
 QR_SCAN_NEAR_EXPIRY_DAYS = 7
-QR_TOKEN_PEPPER = os.environ.get("QR_TOKEN_PEPPER") or SECRET_KEY
-AUTH_TOKEN_PEPPER = os.environ.get("AUTH_TOKEN_PEPPER") or SECRET_KEY
+QR_TOKEN_PEPPER = required_env("QR_TOKEN_PEPPER", development_default="dev-qr-token-pepper")
+AUTH_TOKEN_PEPPER = required_env("AUTH_TOKEN_PEPPER", development_default="dev-auth-token-pepper")
 AUTH_TOKEN_COOKIE_NAME = os.environ.get("AUTH_TOKEN_COOKIE_NAME", "origin_auth_token")
 AUTH_TOKEN_COOKIE_PATH = os.environ.get("AUTH_TOKEN_COOKIE_PATH", "/api")
 AUTH_TOKEN_COOKIE_SAMESITE = os.environ.get("AUTH_TOKEN_COOKIE_SAMESITE", "Lax")
@@ -104,12 +117,21 @@ CSRF_COOKIE_SAMESITE = os.environ.get("CSRF_COOKIE_SAMESITE", "Lax")
 CSRF_COOKIE_HTTPONLY = False
 PERFORMANCE_CACHE_TIMEOUT = int(os.environ.get("PERFORMANCE_CACHE_TIMEOUT", "30"))
 
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "origin-django-default",
+REDIS_URL = os.environ.get("REDIS_URL")
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "origin-django-default",
+        }
+    }
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

@@ -421,10 +421,10 @@ export const ProductManagementPage: React.FC = () => {
   const productListParams = useMemo(
     () => ({
       search: deferredQuery.trim(),
-      page: 1,
-      size: 100,
+      page: currentPage,
+      size: PAGE_SIZE,
     }),
-    [deferredQuery],
+    [currentPage, deferredQuery],
   );
 
   const productsQuery = useQuery({
@@ -466,13 +466,14 @@ export const ProductManagementPage: React.FC = () => {
     });
   }, [deferredQuery, filters.category, filters.location, filters.unit, products]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
-  const startIndex = (currentPage - 1) * PAGE_SIZE;
-  const pagedProducts = filteredProducts.slice(startIndex, startIndex + PAGE_SIZE);
+  const hasLocalFilters = Boolean(filters.category || filters.location || filters.unit);
+  const serverTotal = productsQuery.data?.pagination?.total ?? filteredProducts.length;
+  const totalPages = hasLocalFilters ? 1 : Math.max(1, Math.ceil(serverTotal / PAGE_SIZE));
+  const pagedProducts = filteredProducts;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters]);
+  }, [deferredQuery, filters.category, filters.location, filters.unit]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -790,7 +791,11 @@ export const ProductManagementPage: React.FC = () => {
           <div>
             <h3 className="font-headline text-xl font-bold text-on-surface">货物列表</h3>
             <p className="mt-1 text-sm text-on-surface-variant">
-              {isLoading ? "正在从后端拉取数据..." : `当前筛选结果共 ${filteredProducts.length} 条货物记录。`}
+              {isLoading
+                ? "正在从后端拉取数据..."
+                : hasLocalFilters
+                  ? `当前页筛选结果共 ${filteredProducts.length} 条货物记录。`
+                  : `当前筛选结果共 ${serverTotal} 条货物记录。`}
             </p>
           </div>
           <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500">

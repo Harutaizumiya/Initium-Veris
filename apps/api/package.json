@@ -2,11 +2,11 @@
   "name": "api",
   "private": true,
   "scripts": {
-    "dev": "set DJANGO_DEBUG=1&& set UV_CACHE_DIR=.uv-cache&& uv run python manage.py runserver",
+    "dev": "node scripts/run-uv.mjs dev",
     "build": "python -c \"print('No build step for api')\"",
-    "test": "set UV_CACHE_DIR=.uv-cache&& uv run python manage.py test",
-    "lint": "set UV_CACHE_DIR=.uv-cache&& uv run python manage.py check",
-    "check-types": "set UV_CACHE_DIR=.uv-cache&& uv run python manage.py check",
+    "test": "node scripts/run-uv.mjs test",
+    "lint": "node scripts/run-uv.mjs check",
+    "check-types": "node scripts/run-uv.mjs check",
     "clean": "python -c \"print('No clean step for api')\""
   }
 }

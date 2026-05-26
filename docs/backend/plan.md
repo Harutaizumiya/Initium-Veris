@@ -54,7 +54,7 @@ apps/api/
 2. 为 `mobile-login`、Bearer token、扫码审计和权限管理补齐端到端测试。
 3. 拆分 `apps/mobile/src/App.tsx`，避免移动端继续把页面、状态和样式都压在单文件。
 4. 为 `managed = False` 的业务表建立明确的生产 DDL 变更流程，避免 migrations 与真实表结构漂移。
-5. 评估 `SECRET_KEY = "dev-secret-key"` 在生产配置中的覆盖方式，确保部署环境显式提供安全密钥或等价配置。
+5. 为生产部署补齐 `DJANGO_SECRET_KEY`、`AUTH_TOKEN_PEPPER`、`QR_TOKEN_PEPPER`、`DJANGO_ALLOWED_HOSTS` 和可选 `REDIS_URL`，避免使用开发默认配置。
 
 ## Out Of Scope
 - 不恢复旧 FastAPI 运行时。

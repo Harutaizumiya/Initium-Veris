@@ -19,7 +19,7 @@
 - `types`
 
 ## Client Behavior
-- 默认 Base URL：`http://47.98.36.24:8000/api`
+- 默认 Base URL：`http://localhost:8000/api`
 - 默认凭证：`credentials: "include"`
 - 默认启用 CSRF，状态变更请求会先调用 `/auth/csrf`
 - 可通过 `configureApiClient` 注入 `baseUrl`、`fetchFn`、`getAuthHeaders`、`readCookie`、logger 和 401 handler

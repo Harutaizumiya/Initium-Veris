@@ -1,6 +1,6 @@
 import { ApiClientError } from "./types";
 
-const DEFAULT_API_BASE_URL = "http://47.98.36.24:8000/api";
+const DEFAULT_API_BASE_URL = "http://localhost:8000/api";
 
 export interface ApiClientLogger {
   error?: (scope: string, message: string, details?: Record<string, unknown>) => void;

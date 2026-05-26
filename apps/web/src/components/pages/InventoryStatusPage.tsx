@@ -673,8 +673,16 @@ export const InventoryStatusPage: React.FC = () => {
   const [labelPrintError, setLabelPrintError] = useState<string | null>(null);
   const cardGridRef = useRef<HTMLDivElement | null>(null);
   const deferredQuery = useDeferredValue(newBatchForm.query);
-  const productListParams = useMemo(() => ({ page: 1, size: 100 }), []);
-  const batchListParams = useMemo(() => ({ page: 1, size: 100 }), []);
+  const pageSize = view === "card" ? getCardPageSize(cardColumnCount) : LIST_PAGE_SIZE;
+  const productListParams = useMemo(
+    () => ({
+      search: deferredQuery.trim(),
+      page: 1,
+      size: 100,
+    }),
+    [deferredQuery],
+  );
+  const batchListParams = useMemo(() => ({ page: currentPage, size: pageSize }), [currentPage, pageSize]);
   const productsQuery = useQuery({
     queryKey: queryKeys.products.list(productListParams),
     queryFn: () => listProducts(productListParams),
@@ -695,7 +703,7 @@ export const InventoryStatusPage: React.FC = () => {
         .map(toInventoryRecord) ?? [],
     [batchesQuery.data],
   );
-  const isLoading = productsQuery.isLoading || batchesQuery.isLoading;
+  const isLoading = batchesQuery.isLoading || (!isCreateBatchOpen && productsQuery.isLoading);
   const pageError = productsQuery.error
     ? getErrorMessage(productsQuery.error)
     : batchesQuery.error
@@ -738,10 +746,9 @@ export const InventoryStatusPage: React.FC = () => {
       });
   }, [deferredQuery, isCreateBatchOpen, products]);
 
-  const pageSize = view === "card" ? getCardPageSize(cardColumnCount) : LIST_PAGE_SIZE;
-  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize));
-  const startIndex = (currentPage - 1) * pageSize;
-  const pagedItems = sortedItems.slice(startIndex, startIndex + pageSize);
+  const serverBatchTotal = batchesQuery.data?.pagination?.total ?? sortedItems.length;
+  const totalPages = Math.max(1, Math.ceil(serverBatchTotal / pageSize));
+  const pagedItems = sortedItems;
 
   const reloadPageData = useCallback(async () => {
     await Promise.all([
@@ -1022,7 +1029,7 @@ export const InventoryStatusPage: React.FC = () => {
           <div>
             <h3 className="font-headline text-xl font-bold text-on-surface">批次详情</h3>
             <p className="mt-1 text-sm text-on-surface-variant">
-              {isLoading ? "正在从后端加载批次..." : `当前共 ${sortedItems.length} 个批次条目，临期与过期批次优先展示。`}
+              {isLoading ? "正在从后端加载批次..." : `当前共 ${serverBatchTotal} 个批次条目，当前页临期与过期批次优先展示。`}
             </p>
           </div>
           <div className="flex items-center gap-3">

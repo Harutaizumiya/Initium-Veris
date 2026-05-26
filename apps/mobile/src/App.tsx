@@ -1224,7 +1224,7 @@ function QrScanScreen({ onToast }: { onToast: (toast: ToastState) => void }) {
           </View>
           <View style={styles.metaGrid}>
             <Meta label="批次" value={result.batchCode ?? "-"} />
-            <Meta label="到期" value={result.expireDate ?? "-"} />
+            <Meta label="到期" value={result.expireDate ? formatDate(result.expireDate) : "-"} />
             <Meta label="剩余天数" value={result.remainingDays === null ? "-" : String(result.remainingDays)} />
             <Meta label="审计 ID" value={result.auditId} />
           </View>
@@ -1679,7 +1679,7 @@ function BatchCard({ batch, children }: { batch: BatchDto; children?: React.Reac
       <View style={styles.metaGrid}>
         <Meta label="数量" value={batch.quantity} />
         <Meta label="生产日期" value={batch.manufacture_date ?? "-"} />
-        <Meta label="到期日期" value={batch.expire_date ?? "-"} />
+        <Meta label="到期日期" value={batch.expire_date ? formatDate(batch.expire_date) : "-"} />
         <Meta label="剩余天数" value={remainingDays === null ? "-" : String(remainingDays)} />
       </View>
       {children}
@@ -1987,6 +1987,10 @@ function formatNumber(value: number) {
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
 function toggleString(list: string[], value: string) {

@@ -76,5 +76,6 @@ export interface InventoryBatchDetailModalProps {
   onClose: () => void;
   onPrintLabel: () => void;
   formatDate: (date: string) => string;
+  formatDateTime: (date: string) => string;
   formatQuantity: (quantity: string) => string;
 }

@@ -118,6 +118,7 @@ export const InventoryBatchDetailModal: React.FC<InventoryBatchDetailModalProps>
   onClose,
   onPrintLabel,
   formatDate,
+  formatDateTime,
   formatQuantity,
 }) => {
   if (!item || !detail || !metrics) {
@@ -229,6 +230,10 @@ export const InventoryBatchDetailModal: React.FC<InventoryBatchDetailModalProps>
                         className={cn("h-full rounded-full", statusMeta.progressClassName)}
                       />
                     </div>
+                  </div>
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">
+                    <span className="font-semibold text-on-surface-variant">详细到期时间：</span>
+                    <span className="font-bold text-on-surface">{formatDateTime(item.expireDate)}</span>
                   </div>
                 </section>
 

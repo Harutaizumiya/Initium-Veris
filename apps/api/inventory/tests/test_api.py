@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -302,10 +302,10 @@ class InventoryApiTests(SimpleTestCase):
             },
         )
 
-    @patch("inventory.expiry.timezone.localdate")
+    @patch("inventory.expiry.timezone.localtime")
     @patch("inventory.views.BatchService.list_batches")
-    def test_list_batches_includes_expiry_fields(self, mock_list_batches, mock_localdate):
-        mock_localdate.return_value = date(2026, 4, 27)
+    def test_list_batches_includes_expiry_fields(self, mock_list_batches, mock_localtime):
+        mock_localtime.return_value = timezone.make_aware(datetime(2026, 4, 27, 0, 0))
         mock_list_batches.return_value = (
             [
                 SimpleNamespace(
@@ -358,10 +358,10 @@ class InventoryApiTests(SimpleTestCase):
         )
         mock_list_batches.assert_called_once_with(product_id=1, status=None, expired_only=False, page=1, size=20)
 
-    @patch("inventory.expiry.timezone.localdate")
+    @patch("inventory.expiry.timezone.localtime")
     @patch("inventory.views.BatchService.get_batch")
-    def test_get_batch_detail_returns_standard_shape(self, mock_get_batch, mock_localdate):
-        mock_localdate.return_value = date(2026, 4, 27)
+    def test_get_batch_detail_returns_standard_shape(self, mock_get_batch, mock_localtime):
+        mock_localtime.return_value = timezone.make_aware(datetime(2026, 4, 27, 0, 0))
         mock_get_batch.return_value = {
             "id": 3,
             "product_id": 1,

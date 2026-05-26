@@ -1,16 +1,16 @@
 import type { Category, TrendDataPoint, UrgentItem } from "../types/inventory";
 
 export const TREND_DATA: TrendDataPoint[] = [
-  { name: "5/24", value: 40, type: "normal" },
-  { name: "5/27", value: 55, type: "normal" },
-  { name: "5/30", value: 35, type: "normal" },
-  { name: "6/3", value: 75, type: "normal" },
-  { name: "6/6", value: 85, type: "normal" },
-  { name: "6/9", value: 60, type: "warning" },
-  { name: "6/13", value: 95, type: "critical" },
-  { name: "6/16", value: 65, type: "normal" },
-  { name: "6/20", value: 45, type: "normal" },
-  { name: "6/23", value: 30, type: "normal" },
+  { date: "2026-05-24", name: "5/24", value: 40, quantity: 420, type: "normal" },
+  { date: "2026-05-27", name: "5/27", value: 55, quantity: 580, type: "normal" },
+  { date: "2026-05-30", name: "5/30", value: 35, quantity: 360, type: "normal" },
+  { date: "2026-06-03", name: "6/3", value: 75, quantity: 730, type: "normal" },
+  { date: "2026-06-06", name: "6/6", value: 85, quantity: 810, type: "normal" },
+  { date: "2026-06-09", name: "6/9", value: 60, quantity: 540, type: "warning" },
+  { date: "2026-06-13", name: "6/13", value: 95, quantity: 900, type: "critical" },
+  { date: "2026-06-16", name: "6/16", value: 65, quantity: 610, type: "normal" },
+  { date: "2026-06-20", name: "6/20", value: 45, quantity: 430, type: "normal" },
+  { date: "2026-06-23", name: "6/23", value: 30, quantity: 280, type: "normal" },
 ];
 
 export const CATEGORIES: Category[] = [

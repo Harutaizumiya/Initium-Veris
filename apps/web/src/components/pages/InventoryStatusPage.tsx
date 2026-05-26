@@ -86,6 +86,16 @@ function formatDate(date: string) {
   });
 }
 
+function formatDateTime(date: string) {
+  return new Date(date).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function getShelfLifeMetrics(item: InventoryRecord): ShelfLifeMetrics {
   return getShelfLifeMetricsFromDates(item.expireDate, item.manufactureDate);
 }
@@ -214,10 +224,10 @@ const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: {
     (viewModel) =>
       viewModel.metrics.health !== "healthy" &&
       viewModel.item.expiryStatus !== "expired" &&
-      viewModel.metrics.remainingDays > 0,
+      viewModel.metrics.remainingDays >= 0,
   ).length;
   const expiredBatchCount = items.filter(
-    (viewModel) => viewModel.item.expiryStatus === "expired" || viewModel.metrics.remainingDays <= 0,
+    (viewModel) => viewModel.item.expiryStatus === "expired" || viewModel.metrics.remainingDays < 0,
   ).length;
   const healthyRate = Math.round(
     (items.filter((viewModel) => viewModel.metrics.health === "healthy").length / Math.max(items.length, 1)) * 100,
@@ -1056,6 +1066,7 @@ export const InventoryStatusPage: React.FC = () => {
         onClose={closeDetail}
         onPrintLabel={openLabelPrint}
         formatDate={formatDate}
+        formatDateTime={formatDateTime}
         formatQuantity={formatQuantity}
       />
 

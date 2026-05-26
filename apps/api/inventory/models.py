@@ -28,7 +28,7 @@ class Batch(models.Model):
     quantity = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
     received_at = models.DateTimeField(blank=True, db_default=Now())
     manufacture_date = models.DateField(blank=True, null=True)
-    expire_date = models.DateField(blank=True, null=True)
+    expire_date = models.DateTimeField(blank=True, null=True)
     status = models.CharField(max_length=255, blank=True, null=True)
     remarks = models.CharField(max_length=255, blank=True, null=True)
 

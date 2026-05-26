@@ -86,7 +86,9 @@ export interface Category {
 }
 
 export interface TrendDataPoint {
+  date: string;
   name: string;
   value: number;
+  quantity: number;
   type: "normal" | "warning" | "critical";
 }

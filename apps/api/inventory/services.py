@@ -20,9 +20,11 @@ from common.exceptions import ConflictApiError, NotFoundApiError
 from inventory.expiry import (
     ALERT_EXPIRY_STATUSES,
     EXPIRY_STATUS_EXPIRED,
+    build_expiry_datetime,
     calc_days_until_expiry,
     calc_expiry_progress,
     calc_expiry_status,
+    normalize_expiry_datetime,
 )
 from inventory.models import Batch, BatchOperation, BatchQrCredential, InventoryAuditLog, Product, QrScanAuditLog
 
@@ -54,9 +56,25 @@ def _raise_conflict(detail: str, exc: Exception) -> None:
 def _format_date(value) -> str | None:
     if value is None:
         return None
+    if isinstance(value, datetime):
+        if timezone.is_aware(value):
+            return timezone.localtime(value).isoformat()
+        return value.isoformat()
     if isinstance(value, date):
         return value.isoformat()
     return str(value)
+
+
+def _format_local_date(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if timezone.is_aware(value):
+            return timezone.localtime(value).date().isoformat()
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)[:10]
 
 
 def _format_decimal(value) -> str | None:
@@ -138,39 +156,40 @@ def _start_of_day(value: date) -> datetime:
     return timezone.make_aware(datetime.combine(value, time.min), timezone.get_current_timezone())
 
 
-def _batch_days_until_expiry(batch, today: date) -> int | None:
-    return calc_days_until_expiry(_obj_value(batch, "expire_date"), today)
+def _batch_days_until_expiry(batch, now: date | datetime) -> int | None:
+    return calc_days_until_expiry(_obj_value(batch, "expire_date"), now)
 
 
-def _batch_expiry_progress(batch, today: date) -> float | None:
+def _batch_expiry_progress(batch, now: date | datetime) -> float | None:
     return calc_expiry_progress(
         _obj_value(batch, "manufacture_date"),
         _product_value(batch, "shelf_life_days"),
-        today,
+        now,
     )
 
 
-def _batch_expiry_status(batch, today: date) -> str:
+def _batch_expiry_status(batch, now: date | datetime) -> str:
     return calc_expiry_status(
         _obj_value(batch, "manufacture_date"),
         _product_value(batch, "shelf_life_days"),
-        today,
+        now,
+        expire_date=_obj_value(batch, "expire_date"),
     )
 
 
-def _is_near_expiry_batch(batch, today: date) -> bool:
-    days = _batch_days_until_expiry(batch, today)
+def _is_near_expiry_batch(batch, now: date | datetime) -> bool:
+    days = _batch_days_until_expiry(batch, now)
     return days is not None and 0 <= days <= 7
 
 
-def _is_expired_batch(batch, today: date) -> bool:
-    days = _batch_days_until_expiry(batch, today)
-    return (days is not None and days < 0) or _batch_expiry_status(batch, today) == EXPIRY_STATUS_EXPIRED
+def _is_expired_batch(batch, now: date | datetime) -> bool:
+    days = _batch_days_until_expiry(batch, now)
+    return (days is not None and days < 0) or _batch_expiry_status(batch, now) == EXPIRY_STATUS_EXPIRED
 
 
-def _expiry_sort_key(batch, today: date):
-    days = _batch_days_until_expiry(batch, today)
-    progress = _batch_expiry_progress(batch, today) or 0
+def _expiry_sort_key(batch, now: date | datetime):
+    days = _batch_days_until_expiry(batch, now)
+    progress = _batch_expiry_progress(batch, now) or 0
     quantity = _decimal_or_zero(_obj_value(batch, "quantity"))
     return (
         days is None,
@@ -363,15 +382,16 @@ class DashboardService:
     @classmethod
     def get_overview(cls) -> dict:
         try:
+            now = timezone.now()
             today = timezone.localdate()
             batches = cls._active_batches()
             total_quantity = sum((_decimal_or_zero(_obj_value(batch, "quantity")) for batch in batches), Decimal("0"))
-            near_expiry_batches = [batch for batch in batches if _is_near_expiry_batch(batch, today)]
-            expired_batches = [batch for batch in batches if _is_expired_batch(batch, today)]
+            near_expiry_batches = [batch for batch in batches if _is_near_expiry_batch(batch, now)]
+            expired_batches = [batch for batch in batches if _is_expired_batch(batch, now)]
             healthy_batches = [
                 batch
                 for batch in batches
-                if not _is_near_expiry_batch(batch, today) and not _is_expired_batch(batch, today)
+                if not _is_near_expiry_batch(batch, now) and not _is_expired_batch(batch, now)
             ]
 
             return {
@@ -381,7 +401,7 @@ class DashboardService:
                 "batch_health_rate": cls._health_rate(len(healthy_batches), len(batches)),
                 "expiry_trend_30d": cls._expiry_trend_30d(batches, today),
                 "category_inventory_distribution": cls._category_inventory_distribution(batches, total_quantity),
-                "top_near_expiry_batches": sorted(near_expiry_batches, key=lambda batch: _expiry_sort_key(batch, today))[
+                "top_near_expiry_batches": sorted(near_expiry_batches, key=lambda batch: _expiry_sort_key(batch, now))[
                     :5
                 ],
             }
@@ -462,6 +482,7 @@ class AnalyticsService:
     @classmethod
     def get_summary(cls, *, range_value: str = "6m") -> dict:
         try:
+            now = timezone.now()
             today = timezone.localdate()
             months = cls.range_month_choices[range_value]
             current_month = _month_start(today)
@@ -493,7 +514,7 @@ class AnalyticsService:
                     period_end,
                 ),
                 "category_operation_summary": cls._category_operation_summary(operations),
-                "high_risk_inventory_ranking": cls._high_risk_inventory_ranking(active_batches, today),
+                "high_risk_inventory_ranking": cls._high_risk_inventory_ranking(active_batches, now),
             }
         except DatabaseError as exc:
             _raise_conflict("Unable to build analytics summary", exc)
@@ -585,21 +606,25 @@ class AnalyticsService:
         )
 
     @staticmethod
-    def _high_risk_inventory_ranking(active_batches: list, today: date) -> list:
+    def _high_risk_inventory_ranking(active_batches: list, now: date | datetime) -> list:
         high_risk_batches = [
             batch
             for batch in active_batches
-            if _is_expired_batch(batch, today)
-            or (_batch_days_until_expiry(batch, today) is not None and _batch_days_until_expiry(batch, today) <= 30)
-            or _batch_expiry_status(batch, today) in ALERT_EXPIRY_STATUSES
+            if _is_expired_batch(batch, now)
+            or (_batch_days_until_expiry(batch, now) is not None and _batch_days_until_expiry(batch, now) <= 30)
+            or _batch_expiry_status(batch, now) in ALERT_EXPIRY_STATUSES
         ]
-        return sorted(high_risk_batches, key=lambda batch: _expiry_sort_key(batch, today))[:10]
+        return sorted(high_risk_batches, key=lambda batch: _expiry_sort_key(batch, now))[:10]
 
 
 class BatchService:
     @staticmethod
     def _generate_batch_code() -> str:
         return f"BATCH-{datetime.now().strftime('%Y%m%d')}-{uuid4().hex[:8]}"
+
+    @staticmethod
+    def _normalize_expire_date(value):
+        return normalize_expiry_datetime(value)
 
     @staticmethod
     def _snapshot(batch) -> dict:
@@ -626,7 +651,9 @@ class BatchService:
 
         expire_date = data.get("expire_date")
         if expire_date is None:
-            expire_date = data["manufacture_date"] + timedelta(days=product.shelf_life_days)
+            expire_date = build_expiry_datetime(data["manufacture_date"], product.shelf_life_days)
+        else:
+            expire_date = cls._normalize_expire_date(expire_date)
 
         payload = {
             "product": product,
@@ -675,6 +702,8 @@ class BatchService:
     def update_batch(cls, batch_id: int, data: dict, *, actor=None, action: str = InventoryAuditLog.ACTION_UPDATE):
         batch = cls.get_batch(batch_id)
         update_data = dict(data)
+        if "expire_date" in update_data and update_data["expire_date"] is not None:
+            update_data["expire_date"] = cls._normalize_expire_date(update_data["expire_date"])
 
         for field, value in update_data.items():
             setattr(batch, field, value)
@@ -741,7 +770,7 @@ class BatchService:
             if status:
                 queryset = queryset.filter(status=status)
             if expired_only:
-                queryset = queryset.filter(expire_date__lt=timezone.localdate())
+                queryset = queryset.filter(expire_date__lt=timezone.now())
 
             total = queryset.count()
             offset = (page - 1) * size
@@ -763,8 +792,9 @@ class BatchService:
         size: int,
     ):
         try:
+            now = timezone.now()
             today = timezone.localdate()
-            latest_expire_date = today + timedelta(days=days_lte)
+            latest_expire_date = build_expiry_datetime(today + timedelta(days=days_lte), 1)
             queryset = (
                 Batch.objects.select_related("product")
                 .only(
@@ -800,17 +830,22 @@ class BatchService:
             if include_expired:
                 queryset = queryset.filter(expire_date__lte=latest_expire_date)
             else:
-                queryset = queryset.filter(expire_date__gte=today, expire_date__lte=latest_expire_date)
+                queryset = queryset.filter(expire_date__gte=now, expire_date__lte=latest_expire_date)
 
             batches = list(queryset)
             allowed_statuses = (expiry_status,) if expiry_status else ALERT_EXPIRY_STATUSES
             filtered_batches = []
             for batch in batches:
-                status_value = calc_expiry_status(batch.manufacture_date, batch.product.shelf_life_days, today)
+                status_value = calc_expiry_status(
+                    batch.manufacture_date,
+                    batch.product.shelf_life_days,
+                    now,
+                    expire_date=batch.expire_date,
+                )
                 if status_value not in allowed_statuses:
                     continue
-                days_until_expiry = calc_days_until_expiry(batch.expire_date, today)
-                expiry_progress = calc_expiry_progress(batch.manufacture_date, batch.product.shelf_life_days, today) or 0
+                days_until_expiry = calc_days_until_expiry(batch.expire_date, now)
+                expiry_progress = calc_expiry_progress(batch.manufacture_date, batch.product.shelf_life_days, now) or 0
                 filtered_batches.append((batch, days_until_expiry, expiry_progress))
 
             filtered_batches.sort(
@@ -869,7 +904,7 @@ class QrCredentialService:
             "barcode": batch.product.barcode,
             "quantity": _format_decimal(batch.quantity),
             "location": batch.product.location,
-            "expireDate": _format_date(batch.expire_date),
+            "expireDate": _format_local_date(batch.expire_date),
             "qrCode": qr_code,
         }
 

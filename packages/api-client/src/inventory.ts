@@ -3,8 +3,14 @@ import type { InventoryHealth, ShelfLifeMetrics } from "./types";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
-function parseDate(value: string | null) {
-  return value ? new Date(value) : null;
+function parseDate(value: string | null, options: { endOfDay?: boolean } = {}) {
+  if (!value) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T${options.endOfDay ? "23:59:00" : "00:00:00"}`);
+  }
+  return new Date(value);
 }
 
 export function parseQuantity(quantity: string) {
@@ -13,7 +19,7 @@ export function parseQuantity(quantity: string) {
 
 export function getShelfLifeMetricsFromDates(expireDate: string | null, manufactureDate: string | null): ShelfLifeMetrics {
   const now = new Date();
-  const expire = parseDate(expireDate);
+  const expire = parseDate(expireDate, { endOfDay: true });
   const manufacture = parseDate(manufactureDate);
 
   if (!expire) {
@@ -21,7 +27,10 @@ export function getShelfLifeMetricsFromDates(expireDate: string | null, manufact
   }
 
   const remainingDuration = expire.getTime() - now.getTime();
-  const remainingDays = Math.max(0, Math.ceil(remainingDuration / DAY_IN_MS));
+  const remainingDays =
+    remainingDuration < 0
+      ? -Math.max(1, Math.ceil(Math.abs(remainingDuration) / DAY_IN_MS))
+      : Math.ceil(remainingDuration / DAY_IN_MS);
 
   if (!manufacture || expire.getTime() <= manufacture.getTime()) {
     if (remainingDuration <= 0) {

@@ -206,8 +206,10 @@ function toDashboardData(dto: DashboardOverviewDto): DashboardData {
       },
     ],
     trendData: dto.expiry_trend_30d.map((point) => ({
+      date: point.date,
       name: formatTrendDate(point.date),
       value: point.batch_count,
+      quantity: parseQuantity(point.quantity),
       type: getTrendType(point),
     })),
     categories: dto.category_inventory_distribution.map((category, index) => ({

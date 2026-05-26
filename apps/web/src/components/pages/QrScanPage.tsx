@@ -24,6 +24,14 @@ function formatDateTime(value: string) {
   });
 }
 
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiClientError) {
     switch (error.message) {
@@ -247,7 +255,7 @@ export const QrScanPage: React.FC = () => {
                   <div>
                     <span className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">效期信息</span>
                     <span className="mt-1 block font-semibold text-on-surface">
-                      {result.expireDate ?? "-"}
+                      {result.expireDate ? formatDate(result.expireDate) : "-"}
                       {result.remainingDays === null ? "" : ` · ${result.remainingDays} 天`}
                     </span>
                   </div>

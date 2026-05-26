@@ -1,5 +1,5 @@
 import hashlib
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, Mock, call
@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from django.db import DatabaseError, IntegrityError
 from django.test import SimpleTestCase, override_settings
+from django.utils import timezone
 
 from common.cache_utils import CACHE_GROUP_INVENTORY_READ, CACHE_GROUP_PRODUCT_CATEGORIES
 from common.exceptions import ConflictApiError, NotFoundApiError
@@ -31,6 +32,30 @@ class ExpiryCalculationTests(SimpleTestCase):
         self.assertEqual(calc_days_until_expiry(date(2026, 4, 27), today), 0)
         self.assertEqual(calc_days_until_expiry(date(2026, 5, 7), today), 10)
         self.assertIsNone(calc_days_until_expiry(None, today))
+
+    def test_expiry_is_not_expired_until_after_cutoff_time(self):
+        expire_at = timezone.make_aware(datetime(2026, 4, 27, 23, 59))
+
+        self.assertEqual(calc_days_until_expiry(expire_at, timezone.make_aware(datetime(2026, 4, 27, 23, 59))), 0)
+        self.assertEqual(calc_days_until_expiry(expire_at, timezone.make_aware(datetime(2026, 4, 27, 23, 59, 1))), -1)
+        self.assertEqual(
+            calc_expiry_status(
+                date(2026, 4, 27),
+                1,
+                timezone.make_aware(datetime(2026, 4, 27, 23, 59)),
+                expire_date=expire_at,
+            ),
+            "normal",
+        )
+        self.assertEqual(
+            calc_expiry_status(
+                date(2026, 4, 27),
+                1,
+                timezone.make_aware(datetime(2026, 4, 27, 23, 59, 1)),
+                expire_date=expire_at,
+            ),
+            "expired",
+        )
 
     def test_expiry_progress_uses_relative_lifecycle(self):
         today = date(2026, 4, 27)
@@ -176,7 +201,10 @@ class BatchServiceTests(SimpleTestCase):
         )
 
         payload = mock_batch_create.call_args.kwargs
-        self.assertEqual(payload["expire_date"], date(2026, 5, 21))
+        self.assertEqual(
+            payload["expire_date"],
+            timezone.make_aware(datetime.combine(date(2026, 5, 20), time(23, 59))),
+        )
         self.assertEqual(payload["product"].id, 1)
         self.assertEqual(payload["quantity"], Decimal("0.00"))
         mock_issue_qr.assert_called_once_with(batch)
@@ -258,10 +286,12 @@ class BatchServiceTests(SimpleTestCase):
         self.assertEqual(mock_audit_create.call_args.kwargs["snapshot"]["quantity"], "8.50")
         batch.delete.assert_called_once()
 
+    @patch("inventory.services.timezone.now")
     @patch("inventory.services.timezone.localdate")
     @patch("inventory.services.Batch.objects")
-    def test_list_expiry_alerts_returns_default_unopened_lifecycle_alerts(self, mock_batch_objects, mock_localdate):
+    def test_list_expiry_alerts_returns_default_unopened_lifecycle_alerts(self, mock_batch_objects, mock_localdate, mock_now):
         mock_localdate.return_value = date(2026, 4, 27)
+        mock_now.return_value = timezone.make_aware(datetime(2026, 4, 27, 0, 0))
         mock_batch_objects.select_related.return_value = FakeBatchQuerySet(
             [
                 fake_batch(1, status="unopened", manufacture_date=date(2026, 4, 8), expire_date=date(2026, 4, 28)),
@@ -285,10 +315,12 @@ class BatchServiceTests(SimpleTestCase):
         self.assertEqual(total, 1)
         self.assertEqual([batch.id for batch in batches], [1])
 
+    @patch("inventory.services.timezone.now")
     @patch("inventory.services.timezone.localdate")
     @patch("inventory.services.Batch.objects")
-    def test_list_expiry_alerts_can_exclude_expired_batches(self, mock_batch_objects, mock_localdate):
+    def test_list_expiry_alerts_can_exclude_expired_batches(self, mock_batch_objects, mock_localdate, mock_now):
         mock_localdate.return_value = date(2026, 4, 27)
+        mock_now.return_value = timezone.make_aware(datetime(2026, 4, 27, 0, 0))
         mock_batch_objects.select_related.return_value = FakeBatchQuerySet(
             [
                 fake_batch(1, status="unopened", manufacture_date=date(2026, 4, 1), expire_date=date(2026, 4, 26)),
@@ -311,10 +343,12 @@ class BatchServiceTests(SimpleTestCase):
         self.assertEqual(total, 1)
         self.assertEqual([batch.id for batch in batches], [2])
 
+    @patch("inventory.services.timezone.now")
     @patch("inventory.services.timezone.localdate")
     @patch("inventory.services.Batch.objects")
-    def test_list_expiry_alerts_applies_days_window(self, mock_batch_objects, mock_localdate):
+    def test_list_expiry_alerts_applies_days_window(self, mock_batch_objects, mock_localdate, mock_now):
         mock_localdate.return_value = date(2026, 4, 27)
+        mock_now.return_value = timezone.make_aware(datetime(2026, 4, 27, 0, 0))
         mock_batch_objects.select_related.return_value = FakeBatchQuerySet(
             [
                 fake_batch(1, status="unopened", manufacture_date=date(2026, 4, 8), expire_date=date(2026, 4, 30)),
@@ -339,14 +373,17 @@ class BatchServiceTests(SimpleTestCase):
 
 
 class DashboardServiceTests(SimpleTestCase):
+    @patch("inventory.services.timezone.now")
     @patch("inventory.services.timezone.localdate")
     @patch.object(DashboardService, "_active_batches")
     def test_get_overview_aggregates_active_inventory_risk_and_distribution(
         self,
         mock_active_batches,
         mock_localdate,
+        mock_now,
     ):
         mock_localdate.return_value = date(2026, 5, 13)
+        mock_now.return_value = timezone.make_aware(datetime(2026, 5, 13, 0, 0))
         mock_active_batches.return_value = [
             fake_batch(
                 1,
@@ -392,6 +429,7 @@ class DashboardServiceTests(SimpleTestCase):
 
 
 class AnalyticsServiceTests(SimpleTestCase):
+    @patch("inventory.services.timezone.now")
     @patch("inventory.services.timezone.localdate")
     @patch.object(AnalyticsService, "_effective_operations")
     @patch.object(AnalyticsService, "_active_batches")
@@ -400,8 +438,10 @@ class AnalyticsServiceTests(SimpleTestCase):
         mock_active_batches,
         mock_effective_operations,
         mock_localdate,
+        mock_now,
     ):
         mock_localdate.return_value = date(2026, 5, 13)
+        mock_now.return_value = timezone.make_aware(datetime(2026, 5, 13, 0, 0))
         mock_active_batches.return_value = [
             fake_batch(
                 1,
@@ -500,9 +540,9 @@ class QrCredentialServiceTests(SimpleTestCase):
 
 class QrScanServiceTests(SimpleTestCase):
     @override_settings(QR_SCAN_NEAR_EXPIRY_DAYS=7)
-    @patch("inventory.expiry.timezone.localdate")
-    def test_result_for_batch_uses_server_date_and_near_expiry_threshold(self, mock_localdate):
-        mock_localdate.return_value = date(2026, 5, 12)
+    @patch("inventory.expiry.timezone.localtime")
+    def test_result_for_batch_uses_server_date_and_near_expiry_threshold(self, mock_localtime):
+        mock_localtime.return_value = timezone.make_aware(datetime(2026, 5, 12, 0, 0))
         product = SimpleNamespace(product_name="Milk")
 
         valid = QrScanService._result_for_batch(
@@ -595,9 +635,9 @@ class QrScanServiceTests(SimpleTestCase):
 
     @patch("inventory.services.Batch.objects.select_related")
     @patch("inventory.services.BatchQrCredential.objects.filter")
-    @patch("inventory.expiry.timezone.localdate")
-    def test_scan_with_valid_credential_returns_batch_status(self, mock_localdate, mock_filter, mock_select_related):
-        mock_localdate.return_value = date(2026, 5, 12)
+    @patch("inventory.expiry.timezone.localtime")
+    def test_scan_with_valid_credential_returns_batch_status(self, mock_localtime, mock_filter, mock_select_related):
+        mock_localtime.return_value = timezone.make_aware(datetime(2026, 5, 12, 0, 0))
         credential = SimpleNamespace(batch_id=3, batch_code="BATCH-001", revoked_at=None)
         batch = SimpleNamespace(
             id=3,
@@ -1060,9 +1100,18 @@ def fake_operation(operation_type, quantity, created_at, *, category="drink"):
     )
 
 
+def compare_expire_at(value):
+    if isinstance(value, datetime):
+        return value if timezone.is_aware(value) else timezone.make_aware(value)
+    return timezone.make_aware(datetime.combine(value, time(23, 59)))
+
+
 class FakeBatchQuerySet:
     def __init__(self, batches):
         self.batches = list(batches)
+
+    def only(self, *fields):
+        return self
 
     def exclude(self, **kwargs):
         batches = self.batches
@@ -1082,9 +1131,11 @@ class FakeBatchQuerySet:
             elif key == "product__location":
                 batches = [batch for batch in batches if batch.product.location == value]
             elif key == "expire_date__lte":
-                batches = [batch for batch in batches if batch.expire_date <= value]
+                batches = [batch for batch in batches if compare_expire_at(batch.expire_date) <= compare_expire_at(value)]
             elif key == "expire_date__gte":
-                batches = [batch for batch in batches if batch.expire_date >= value]
+                batches = [batch for batch in batches if compare_expire_at(batch.expire_date) >= compare_expire_at(value)]
+            elif key == "expire_date__gt":
+                batches = [batch for batch in batches if compare_expire_at(batch.expire_date) > compare_expire_at(value)]
         return FakeBatchQuerySet(batches)
 
     def __iter__(self):

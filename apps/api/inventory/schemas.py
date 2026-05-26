@@ -1,6 +1,8 @@
+from datetime import date, datetime
 from decimal import Decimal
 
 from rest_framework import serializers
+from django.utils import timezone
 
 from inventory.expiry import VALID_EXPIRY_STATUSES, calc_days_until_expiry, calc_expiry_progress, calc_expiry_status
 from inventory.models import Batch, BatchOperation, Product
@@ -209,9 +211,20 @@ class ProductSummarySerializer(serializers.ModelSerializer):
 class BatchOutputSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField(source="product.id", read_only=True)
     product = ProductSummarySerializer(read_only=True)
+    expire_date = serializers.SerializerMethodField()
     days_until_expiry = serializers.SerializerMethodField()
     expiry_progress = serializers.SerializerMethodField()
     expiry_status = serializers.SerializerMethodField()
+
+    def get_expire_date(self, obj):
+        value = self._value(obj, "expire_date")
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return timezone.localtime(value).isoformat() if timezone.is_aware(value) else value.isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        return str(value)
 
     def get_days_until_expiry(self, obj):
         return calc_days_until_expiry(self._value(obj, "expire_date"))
@@ -226,6 +239,7 @@ class BatchOutputSerializer(serializers.ModelSerializer):
         return calc_expiry_status(
             self._value(obj, "manufacture_date"),
             self._product_value(obj, "shelf_life_days"),
+            expire_date=self._value(obj, "expire_date"),
         )
 
     @staticmethod

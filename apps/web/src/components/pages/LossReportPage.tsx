@@ -1176,15 +1176,15 @@ export const LossReportPage: React.FC = () => {
             </div>
           </div>
         ) : filteredProductCards.length > 0 ? (
-          <div className="grid gap-6 md:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] 2xl:[grid-template-columns:repeat(4,minmax(0,1fr))]">
             {filteredProductCards.map((card) => (
               <article
                 key={card.product.id}
-                className="flex h-full flex-col rounded-[2rem] border border-surface-container/70 bg-surface-container-lowest p-6 shadow-sm transition-transform duration-200 hover:-translate-y-1"
+                className="flex h-full flex-col rounded-[2rem] border border-surface-container/70 bg-surface-container-lowest p-5 shadow-sm transition-transform duration-200 hover:-translate-y-1"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h4 className="font-headline text-xl font-bold text-on-surface">{card.product.product_name}</h4>
+                    <h4 className="font-headline text-lg font-bold text-on-surface">{card.product.product_name}</h4>
                     <p className="mt-1 text-sm text-on-surface-variant">条码：{card.product.barcode || "-"}</p>
                   </div>
                   <div className="rounded-2xl bg-surface-container-low px-3 py-2 text-right">
@@ -1193,18 +1193,18 @@ export const LossReportPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl bg-surface-container-low px-4 py-3">
                     <div className="text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant">当前库存</div>
-                    <div className="mt-2 font-headline text-2xl font-bold text-on-surface">{formatQuantity(card.totalQuantity)}</div>
+                    <div className="mt-2 font-headline text-xl font-bold text-on-surface">{formatQuantity(card.totalQuantity)}</div>
                   </div>
                   <div className="rounded-2xl bg-surface-container-low px-4 py-3">
                     <div className="text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant">保质期</div>
-                    <div className="mt-2 text-lg font-bold text-on-surface">{card.product.shelf_life_days} 天</div>
+                    <div className="mt-2 text-base font-bold text-on-surface">{card.product.shelf_life_days} 天</div>
                   </div>
                 </div>
 
-                <div className="mt-5 grid gap-3 text-sm text-on-surface-variant">
+                <div className="mt-4 grid gap-3 text-sm text-on-surface-variant">
                   <div className="flex items-center justify-between rounded-2xl bg-surface-container-low px-4 py-3">
                     <span>厂商</span>
                     <span className="font-semibold text-on-surface">{card.product.manufacturer}</span>

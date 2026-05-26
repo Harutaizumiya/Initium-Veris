@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { LockKeyhole, LoaderCircle, UserRound } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, LoaderCircle, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ApiClientError } from "../../api";
 import { OperationAlert } from "../common/OperationAlert";
@@ -30,6 +30,7 @@ export const LoginPage: React.FC = () => {
   const redirectTarget = useMemo(() => getRedirectTarget(location.state), [location.state]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forgotPasswordHintVisible, setForgotPasswordHintVisible] = useState(false);
@@ -86,6 +87,11 @@ export const LoginPage: React.FC = () => {
                 <UserRound size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
                   autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  inputMode="text"
+                  lang="en"
+                  spellCheck={false}
                   value={username}
                   onChange={(event) => {
                     setUsername(event.target.value);
@@ -103,15 +109,29 @@ export const LoginPage: React.FC = () => {
                 <LockKeyhole size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
                   autoComplete="current-password"
-                  type="password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  inputMode="text"
+                  lang="en"
+                  spellCheck={false}
+                  type={passwordVisible ? "text" : "password"}
                   value={password}
                   onChange={(event) => {
                     setPassword(event.target.value);
                     setError(null);
                   }}
-                  className="w-full rounded-2xl border border-slate-200 bg-surface-container-low py-3 pl-11 pr-4 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
+                  className="w-full rounded-2xl border border-slate-200 bg-surface-container-low py-3 pl-11 pr-12 text-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
                   placeholder="输入密码"
                 />
+                <button
+                  type="button"
+                  onClick={() => setPasswordVisible((current) => !current)}
+                  className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                  aria-label={passwordVisible ? "隐藏密码" : "显示密码"}
+                  title={passwordVisible ? "隐藏密码" : "显示密码"}
+                >
+                  {passwordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </label>
 

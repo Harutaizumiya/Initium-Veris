@@ -165,7 +165,7 @@ export const Header: React.FC<HeaderProps> = ({ sidebarWidth }) => {
           height: visible ? HEADER_HEIGHT_PX : 0,
           transitionTimingFunction: SIDEBAR_EASING,
         }}
-        className="glass-header fixed right-0 top-0 z-30 overflow-hidden border-surface-container/50 transition-[left,height,border-color] duration-500"
+        className="glass-header fixed right-0 top-0 z-10 overflow-hidden border-surface-container/50 transition-[left,height,border-color] duration-500"
       >
         <div
           className="flex h-16 items-center justify-between px-8 transition-[transform,opacity] duration-300"

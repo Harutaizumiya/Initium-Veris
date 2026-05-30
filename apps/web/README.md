@@ -35,6 +35,6 @@ debug 模式会以 `vite --mode debug` 启动，前端日志默认开启，便�
 
 参考 [.env.example](.env.example)：
 
-- `VITE_API_BASE_URL`：Django API 地址，默认 `http://localhost:8000/api`
+- `VITE_API_BASE_URL`：Django API 地址，默认连接 `https://veris.haruta.top/api`；本地开发可用 `.env.local` 覆盖为 `http://localhost:8000/api`
 - `GEMINI_API_KEY`：保留给现有 AI 能力
 - `VITE_LOG_*`：前端本地日志开关

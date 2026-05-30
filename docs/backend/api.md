@@ -5,7 +5,7 @@
 ## Base
 
 - 本地：`http://127.0.0.1:8000/api`
-- 生产：通过 `VITE_API_BASE_URL`、`EXPO_PUBLIC_API_BASE_URL` 或部署环境显式配置，不在代码中提供生产默认地址
+- 生产：`https://veris.haruta.top/api`，通过 `VITE_API_BASE_URL`、`EXPO_PUBLIC_API_BASE_URL` 或部署环境显式配置
 - Content-Type：`application/json`
 - 健康检查：`GET /api/ping`，返回纯文本 `pong`
 - 首页：`GET /`，返回 `templates/index.html`

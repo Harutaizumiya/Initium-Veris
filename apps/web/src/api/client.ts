@@ -1,7 +1,7 @@
 import { logger } from "../lib/logger";
 import { configureApiClient } from "@initium-veris/api-client";
 
-const DEFAULT_API_BASE_URL = "http://localhost:8000/api";
+const DEFAULT_API_BASE_URL = "https://veris.haruta.top/api";
 const AUTH_TOKEN_KEY = "initium-veris.auth-token";
 
 let memoryAuthToken: string | null = null;

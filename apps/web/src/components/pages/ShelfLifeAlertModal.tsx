@@ -25,13 +25,13 @@ const ALERT_STATUS_PRIORITY = {
   warning: 2,
 } as const;
 
-interface StatusBadgeMeta {
+export interface StatusBadgeMeta {
   className: string;
   icon: React.ReactNode;
   label: string;
 }
 
-interface AlertBatchViewModel {
+export interface AlertBatchViewModel {
   batch: BatchDto;
   metrics: ShelfLifeMetrics;
   alertStatus: Exclude<ExpiryStatus, "normal">;
@@ -133,6 +133,22 @@ function toAlertBatchViewModel(batch: BatchDto, nowMs: number): AlertBatchViewMo
   };
 }
 
+export function buildShelfLifeAlertBatches(batches: BatchDto[], nowMs = Date.now()) {
+  return batches
+    .filter((batch) => batch.status !== "used_up" && parseQuantity(batch.quantity) > 0)
+    .map((batch) => toAlertBatchViewModel(batch, nowMs))
+    .filter((batch): batch is AlertBatchViewModel => Boolean(batch))
+    .sort((left, right) => {
+      const healthDiff = ALERT_STATUS_PRIORITY[left.alertStatus] - ALERT_STATUS_PRIORITY[right.alertStatus];
+
+      if (healthDiff !== 0) {
+        return healthDiff;
+      }
+
+      return left.expireTime - right.expireTime;
+    });
+}
+
 export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const [alertBatches, setAlertBatches] = useState<AlertBatchViewModel[]>([]);
   const [page, setPage] = useState(1);
@@ -157,22 +173,7 @@ export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void 
       };
 
       const data = await listBatches(params as Parameters<typeof listBatches>[0]);
-      const nowMs = Date.now();
-      const alertItems = data.items
-        .filter((batch) => batch.status !== "used_up" && parseQuantity(batch.quantity) > 0)
-        .map((batch) => toAlertBatchViewModel(batch, nowMs))
-        .filter((batch): batch is AlertBatchViewModel => Boolean(batch))
-        .sort((left, right) => {
-        const healthDiff = ALERT_STATUS_PRIORITY[left.alertStatus] - ALERT_STATUS_PRIORITY[right.alertStatus];
-
-        if (healthDiff !== 0) {
-          return healthDiff;
-        }
-
-        return left.expireTime - right.expireTime;
-      });
-
-      setAlertBatches(alertItems);
+      setAlertBatches(buildShelfLifeAlertBatches(data.items));
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载失败，请稍后重试。");
     } finally {

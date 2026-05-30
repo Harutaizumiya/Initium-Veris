@@ -115,8 +115,10 @@ export const InventoryBatchDetailModal: React.FC<InventoryBatchDetailModalProps>
   detail,
   metrics,
   canPrintLabel,
+  canSubmitLoss,
   onClose,
   onPrintLabel,
+  onOpenLossReport,
   formatDate,
   formatDateTime,
   formatQuantity,
@@ -336,10 +338,12 @@ export const InventoryBatchDetailModal: React.FC<InventoryBatchDetailModalProps>
                 </button>
                 <button
                   type="button"
+                  onClick={onOpenLossReport}
+                  disabled={!canSubmitLoss}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-300 px-6 py-3 text-xs font-bold text-red-600 transition-colors hover:bg-red-50"
                 >
                   <Trash2 size={14} />
-                  报损
+                  {canSubmitLoss ? "报损" : "无报损权限"}
                 </button>
               </div>
             </motion.section>

@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { getDashboardData, getDashboardSnapshot } from "../../api/dashboard";
+import { listBatches } from "../../api";
 import { queryKeys } from "../../api/queryKeys";
 import { ApiClientError } from "../../api/types";
 import { PageHeader } from "../dashboard/PageHeader";
@@ -12,7 +13,7 @@ import { StatCardGrid } from "../dashboard/StatCardGrid";
 import { ChartGrid } from "../charts/ChartGrid";
 import { TableSection } from "../tables/TableSection";
 import { FloatingActionButtons } from "../actions/FloatingActionButtons";
-import { ShelfLifeAlertModal } from "./ShelfLifeAlertModal";
+import { buildShelfLifeAlertBatches, ShelfLifeAlertModal } from "./ShelfLifeAlertModal";
 
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiClientError) {
@@ -31,13 +32,33 @@ function getErrorMessage(error: unknown) {
   return "总览数据请求失败，请稍后重试。";
 }
 
+function formatUpdatedAt(timestamp: number) {
+  if (!timestamp) {
+    return "--:--";
+  }
+
+  return new Date(timestamp).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export const DashboardPage: React.FC = () => {
   const [isShelfLifeAlertOpen, setIsShelfLifeAlertOpen] = useState(false);
   const dashboardQuery = useQuery({
     queryKey: queryKeys.dashboard.overview(),
     queryFn: getDashboardData,
   });
+  const shelfLifeAlertQuery = useQuery({
+    queryKey: ["shelf-life-alerts", "dashboard-card"],
+    queryFn: async () => {
+      const data = await listBatches({ page: 1, size: 100 });
+      return buildShelfLifeAlertBatches(data.items);
+    },
+  });
   const dashboardData = dashboardQuery.data ?? getDashboardSnapshot();
+  const shelfLifeAlertItems = shelfLifeAlertQuery.data ?? [];
+  const shelfLifeAlertUpdatedAt = formatUpdatedAt(shelfLifeAlertQuery.dataUpdatedAt);
 
   return (
     <>
@@ -56,11 +77,10 @@ export const DashboardPage: React.FC = () => {
       <StatCardGrid stats={dashboardData.stats} />
       <ChartGrid trendData={dashboardData.trendData} categories={dashboardData.categories} />
       <TableSection
-        items={dashboardData.urgentItems}
-        lastUpdatedAt={dashboardData.lastUpdatedAt}
-        isRefreshing={dashboardQuery.isFetching}
-        onRefresh={() => void dashboardQuery.refetch()}
-        onViewAll={() => setIsShelfLifeAlertOpen(true)}
+        items={shelfLifeAlertItems}
+        lastUpdatedAt={shelfLifeAlertUpdatedAt}
+        isRefreshing={shelfLifeAlertQuery.isFetching}
+        onRefresh={() => void shelfLifeAlertQuery.refetch()}
       />
       <FloatingActionButtons onOpenShelfLifeAlert={() => setIsShelfLifeAlertOpen(true)} />
       <ShelfLifeAlertModal open={isShelfLifeAlertOpen} onClose={() => setIsShelfLifeAlertOpen(false)} />

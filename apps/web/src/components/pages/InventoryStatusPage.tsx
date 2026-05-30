@@ -26,6 +26,12 @@ import { StatCard } from "../dashboard/StatCard";
 import { InventoryBatchDetailModal } from "./InventoryBatchDetailModal";
 import { InventoryStatusCard } from "./InventoryStatusCard";
 import { LabelPrintModal } from "./LabelPrintModal";
+import {
+  DEFAULT_LOSS_FORM,
+  LossReportModal,
+  type LossFormState,
+  type ProductLossCardData,
+} from "./LossReportPage";
 import type { LabelPrintPayload } from "../../lib/labelPrinter";
 import type { Product } from "./ProductManagement.types";
 import type { InventoryBatchDetail, InventoryHealth, InventoryHealthMeta, InventoryRecord, ShelfLifeMetrics } from "./InventoryStatus.types";
@@ -653,16 +659,23 @@ export const InventoryStatusPage: React.FC = () => {
   const queryClient = useQueryClient();
   const canAddInventory = hasPermission("batch_operations_add");
   const canPrintLabel = hasPermission("label_payload_issue");
+  const canSubmitLoss = hasPermission("batch_operations_loss");
   const [detail, setDetail] = useState<InventoryBatchDetail | null>(null);
   const [view, setView] = useState<InventoryView>("card");
   const [currentPage, setCurrentPage] = useState(1);
   const [cardColumnCount, setCardColumnCount] = useState(1);
   const [selectedItem, setSelectedItem] = useState<InventoryRecord | null>(null);
+  const [selectedDetailBatches, setSelectedDetailBatches] = useState<BatchDto[]>([]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isLossModalOpen, setIsLossModalOpen] = useState(false);
   const [isCreateBatchOpen, setIsCreateBatchOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newBatchError, setNewBatchError] = useState<string | null>(null);
+  const [lossError, setLossError] = useState<string | null>(null);
+  const [lossForm, setLossForm] = useState<LossFormState>(DEFAULT_LOSS_FORM);
+  const [selectedLossCard, setSelectedLossCard] = useState<ProductLossCardData | null>(null);
+  const [selectedLossBatchId, setSelectedLossBatchId] = useState<number | null>(null);
   const [newBatchForm, setNewBatchForm] = useState<NewBatchFormState>(DEFAULT_NEW_BATCH_FORM);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [batchFeedback, setBatchFeedback] = useState<BatchFeedbackState | null>(null);
@@ -723,6 +736,7 @@ export const InventoryStatusPage: React.FC = () => {
     }
     return sortedItems.find((viewModel) => viewModel.item.id === selectedItem.id)?.metrics ?? getShelfLifeMetrics(selectedItem);
   }, [selectedItem, sortedItems]);
+  const selectedLossProduct = selectedItem ? productMap.get(selectedItem.productId) ?? null : null;
   const batchSearchResults = useMemo(() => {
     if (!isCreateBatchOpen) {
       return [];
@@ -773,13 +787,16 @@ export const InventoryStatusPage: React.FC = () => {
         queryFn: () => listProductBatches(item.productId, relatedBatchParams),
         staleTime: 5 * 60 * 1000,
       });
+      const reportableBatches = relatedBatches.items.filter((batch) => batch.status !== "used_up" && parseQuantity(batch.quantity) > 0);
+      setSelectedDetailBatches(reportableBatches);
       setDetail(
         buildInventoryDetail(
           product,
-          relatedBatches.items.filter((batch) => batch.status !== "used_up" && parseQuantity(batch.quantity) > 0),
+          reportableBatches,
         ),
       );
     } catch {
+      setSelectedDetailBatches([]);
       setDetail(null);
     } finally {
       setIsDetailLoading(false);
@@ -789,6 +806,134 @@ export const InventoryStatusPage: React.FC = () => {
   const closeDetail = useCallback(() => {
     setIsDetailOpen(false);
   }, []);
+
+  const openLossReportFromDetail = useCallback(() => {
+    if (!canSubmitLoss) {
+      setBatchFeedback({
+        type: "error",
+        title: "无法发起报损",
+        description: "当前账号没有提交报损的权限。",
+      });
+      setIsBatchFeedbackOpen(true);
+      return;
+    }
+    if (!selectedItem || !selectedLossProduct) {
+      setBatchFeedback({
+        type: "error",
+        title: "无法发起报损",
+        description: "当前批次缺少货物信息，请刷新库存列表后重试。",
+      });
+      setIsBatchFeedbackOpen(true);
+      return;
+    }
+
+    const selectedBatchId = Number(selectedItem.id);
+    const selectedBatch = selectedDetailBatches.find((batch) => batch.id === selectedBatchId);
+    const reportableBatches = [
+      ...(selectedBatch ? [selectedBatch] : []),
+      ...selectedDetailBatches.filter((batch) => batch.id !== selectedBatchId),
+    ];
+
+    setSelectedLossCard({
+      product: selectedLossProduct,
+      batches: reportableBatches,
+      totalQuantity: reportableBatches.reduce((sum, batch) => sum + parseQuantity(batch.quantity), 0),
+      reportableBatchCount: reportableBatches.length,
+    });
+    setSelectedLossBatchId(selectedBatch?.id ?? reportableBatches[0]?.id ?? null);
+    setLossForm(DEFAULT_LOSS_FORM);
+    setLossError(null);
+    setIsLossModalOpen(true);
+  }, [canSubmitLoss, selectedDetailBatches, selectedItem, selectedLossProduct]);
+
+  const closeLossModal = useCallback(() => {
+    if (isSubmitting) {
+      return;
+    }
+    setIsLossModalOpen(false);
+    setSelectedLossCard(null);
+    setSelectedLossBatchId(null);
+    setLossForm(DEFAULT_LOSS_FORM);
+    setLossError(null);
+  }, [isSubmitting]);
+
+  const handleLossFormChange = useCallback((field: keyof LossFormState, value: string) => {
+    setLossForm((currentForm) => ({ ...currentForm, [field]: value }));
+    setLossError(null);
+  }, []);
+
+  const handleSubmitLoss = useCallback(async () => {
+    if (!canSubmitLoss) {
+      setLossError("当前账号没有提交报损的权限。");
+      return;
+    }
+    if (!selectedLossCard || !selectedLossBatchId) {
+      setLossError("请先选择一个可报损批次。");
+      return;
+    }
+
+    const selectedBatch = selectedLossCard.batches.find((batch) => batch.id === selectedLossBatchId);
+    if (!selectedBatch) {
+      setLossError("目标批次不存在，请重新选择。");
+      return;
+    }
+
+    const quantityValue = Number.parseFloat(lossForm.quantity);
+    const availableQuantity = parseQuantity(selectedBatch.quantity);
+
+    if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
+      setLossError("请输入有效的报损数量。");
+      return;
+    }
+
+    if (quantityValue > availableQuantity) {
+      setLossError(`报损数量不能超过当前批次的可用数量 ${formatQuantity(availableQuantity)}。`);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setLossError(null);
+
+    try {
+      await createBatchOperation(selectedLossBatchId, {
+        operation_type: "loss",
+        quantity: lossForm.quantity.trim(),
+        remarks: lossForm.remarks.trim() || null,
+      });
+      await reloadPageData();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.operations.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.batches.product(selectedLossCard.product.id) });
+      setBatchFeedback({
+        type: "success",
+        title: "报损提交成功",
+        description: `已为批次 ${selectedBatch.batch_code} 记录报损，库存列表会自动同步最新结果。`,
+      });
+      setIsBatchFeedbackOpen(true);
+      closeLossModal();
+      closeDetail();
+    } catch (error) {
+      setLossError(getErrorMessage(error));
+      setBatchFeedback({
+        type: "error",
+        title: "报损提交失败",
+        description: getErrorMessage(error),
+        detail: getErrorDebugDetail(error),
+      });
+      setIsBatchFeedbackOpen(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    canSubmitLoss,
+    closeDetail,
+    closeLossModal,
+    lossForm.quantity,
+    lossForm.remarks,
+    queryClient,
+    reloadPageData,
+    selectedLossBatchId,
+    selectedLossCard,
+  ]);
 
   const openLabelPrint = useCallback(async () => {
     if (!canPrintLabel) {
@@ -1070,11 +1215,29 @@ export const InventoryStatusPage: React.FC = () => {
         detail={detail}
         metrics={selectedMetrics}
         canPrintLabel={canPrintLabel}
+        canSubmitLoss={canSubmitLoss}
         onClose={closeDetail}
         onPrintLabel={openLabelPrint}
+        onOpenLossReport={openLossReportFromDetail}
         formatDate={formatDate}
         formatDateTime={formatDateTime}
         formatQuantity={formatQuantity}
+      />
+
+      <LossReportModal
+        open={isLossModalOpen}
+        card={selectedLossCard}
+        selectedBatchId={selectedLossBatchId}
+        form={lossForm}
+        submitting={isSubmitting}
+        error={lossError}
+        onClose={closeLossModal}
+        onSelectBatch={(batchId) => {
+          setSelectedLossBatchId(batchId);
+          setLossError(null);
+        }}
+        onChange={handleLossFormChange}
+        onSubmit={handleSubmitLoss}
       />
 
       <LabelPrintModal

@@ -22,7 +22,7 @@ import type { Product } from "./ProductManagement.types";
 
 const FETCH_PAGE_SIZE = 100;
 
-interface LossFormState {
+export interface LossFormState {
   quantity: string;
   remarks: string;
 }
@@ -34,7 +34,7 @@ interface LossHistoryEntry {
   canRevert: boolean;
 }
 
-interface ProductLossCardData {
+export interface ProductLossCardData {
   product: Product;
   batches: BatchDto[];
   totalQuantity: number;
@@ -54,7 +54,7 @@ interface LossFeedbackState {
   detail?: string | null;
 }
 
-const DEFAULT_FORM: LossFormState = {
+export const DEFAULT_LOSS_FORM: LossFormState = {
   quantity: "",
   remarks: "",
 };
@@ -267,7 +267,7 @@ function LossFeedbackToast({
   );
 }
 
-function LossReportModal({
+export function LossReportModal({
   open,
   card,
   selectedBatchId,
@@ -300,16 +300,16 @@ function LossReportModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[3px]"
+            className="fixed inset-0 z-[60] bg-slate-950/40 backdrop-blur-[3px]"
             onClick={submitting ? undefined : onClose}
           />
-          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4">
             <motion.section
               initial={{ opacity: 0, scale: 0.96, y: 24 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 24 }}
               transition={{ type: "spring", stiffness: 280, damping: 26 }}
-              className="ambient-shadow pointer-events-auto relative flex w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
+              className="ambient-shadow pointer-events-auto flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest"
             >
               <div className="flex items-start justify-between border-b border-surface-container-high px-8 py-6">
                 <div>
@@ -322,13 +322,13 @@ function LossReportModal({
                   type="button"
                   onClick={onClose}
                   disabled={submitting}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-surface-container bg-surface-container-lowest text-on-surface-variant transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="grid gap-8 px-8 py-8 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+              <div className="grid flex-1 gap-8 overflow-y-auto px-8 py-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
                 <div className="space-y-5">
                   <div className="rounded-3xl border border-surface-container/70 bg-surface-container-low p-5">
                     <div className="flex items-start justify-between gap-4">
@@ -455,26 +455,27 @@ function LossReportModal({
                     <div className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">{error}</div>
                   ) : null}
 
-                  <div className="flex items-center justify-end gap-3 border-t border-surface-container-high pt-5">
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      disabled={submitting}
-                      className="rounded-2xl border border-surface-container px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      取消
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onSubmit}
-                      disabled={submitting || !selectedBatch}
-                      className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <TriangleAlert size={16} />}
-                      确认报损
-                    </button>
-                  </div>
                 </div>
+              </div>
+
+              <div className="flex flex-col items-stretch justify-end gap-3 border-t border-surface-container-high bg-white/80 p-6 backdrop-blur-sm sm:flex-row">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={submitting}
+                  className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={onSubmit}
+                  disabled={submitting || !selectedBatch}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primary-container px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <TriangleAlert size={16} />}
+                  确认报损
+                </button>
               </div>
             </motion.section>
           </div>
@@ -777,7 +778,7 @@ export const LossReportPage: React.FC = () => {
   const [historyWindowDays, setHistoryWindowDays] = useState<LossHistoryWindowDays>(DEFAULT_HISTORY_WINDOW_DAYS);
   const [selectedCard, setSelectedCard] = useState<ProductLossCardData | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
-  const [form, setForm] = useState<LossFormState>(DEFAULT_FORM);
+  const [form, setForm] = useState<LossFormState>(DEFAULT_LOSS_FORM);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [revertingEntry, setRevertingEntry] = useState<LossHistoryEntry | null>(null);
@@ -926,7 +927,7 @@ export const LossReportPage: React.FC = () => {
     }
     setSelectedCard(card);
     setSelectedBatchId(card.batches[0]?.id ?? null);
-    setForm(DEFAULT_FORM);
+    setForm(DEFAULT_LOSS_FORM);
     setSubmitError(null);
     setIsLossModalOpen(true);
   };
@@ -938,7 +939,7 @@ export const LossReportPage: React.FC = () => {
     setIsLossModalOpen(false);
     setSelectedCard(null);
     setSelectedBatchId(null);
-    setForm(DEFAULT_FORM);
+    setForm(DEFAULT_LOSS_FORM);
     setSubmitError(null);
   };
 

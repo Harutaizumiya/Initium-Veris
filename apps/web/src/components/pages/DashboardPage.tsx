@@ -1,7 +1,7 @@
 // 仪表盘主页面
 // 包含所有仪表板功能组件
 
-import React from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { getDashboardData, getDashboardSnapshot } from "../../api/dashboard";
@@ -12,6 +12,7 @@ import { StatCardGrid } from "../dashboard/StatCardGrid";
 import { ChartGrid } from "../charts/ChartGrid";
 import { TableSection } from "../tables/TableSection";
 import { FloatingActionButtons } from "../actions/FloatingActionButtons";
+import { ShelfLifeAlertModal } from "./ShelfLifeAlertModal";
 
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiClientError) {
@@ -31,6 +32,7 @@ function getErrorMessage(error: unknown) {
 }
 
 export const DashboardPage: React.FC = () => {
+  const [isShelfLifeAlertOpen, setIsShelfLifeAlertOpen] = useState(false);
   const dashboardQuery = useQuery({
     queryKey: queryKeys.dashboard.overview(),
     queryFn: getDashboardData,
@@ -53,8 +55,15 @@ export const DashboardPage: React.FC = () => {
       ) : null}
       <StatCardGrid stats={dashboardData.stats} />
       <ChartGrid trendData={dashboardData.trendData} categories={dashboardData.categories} />
-      <TableSection items={dashboardData.urgentItems} lastUpdatedAt={dashboardData.lastUpdatedAt} />
-      <FloatingActionButtons />
+      <TableSection
+        items={dashboardData.urgentItems}
+        lastUpdatedAt={dashboardData.lastUpdatedAt}
+        isRefreshing={dashboardQuery.isFetching}
+        onRefresh={() => void dashboardQuery.refetch()}
+        onViewAll={() => setIsShelfLifeAlertOpen(true)}
+      />
+      <FloatingActionButtons onOpenShelfLifeAlert={() => setIsShelfLifeAlertOpen(true)} />
+      <ShelfLifeAlertModal open={isShelfLifeAlertOpen} onClose={() => setIsShelfLifeAlertOpen(false)} />
     </>
   );
 };

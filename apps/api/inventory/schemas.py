@@ -5,11 +5,12 @@ from rest_framework import serializers
 from django.utils import timezone
 
 from inventory.expiry import VALID_EXPIRY_STATUSES, calc_days_until_expiry, calc_expiry_progress, calc_expiry_status
-from inventory.models import Batch, BatchOperation, Product
-from inventory.services import QR_SCAN_SOURCES, QR_SCAN_STATUSES
+from inventory.models import Batch, BatchOperation, Product, StocktakeAuditLog, StocktakeItem, StocktakeTask
+from inventory.services import QR_SCAN_SOURCES, QR_SCAN_STATUSES, STOCKTAKE_ITEM_STATUSES, STOCKTAKE_TASK_STATUSES, STOCKTAKE_TASK_TYPES
 
 
 VALID_BATCH_OPERATION_TYPES = ("add", "loss", "deduct")
+VALID_BATCH_OPERATION_FILTER_TYPES = (*VALID_BATCH_OPERATION_TYPES, "adjust")
 
 
 class ProductListQuerySerializer(serializers.Serializer):
@@ -136,7 +137,7 @@ class BatchOperationRevertSerializer(serializers.Serializer):
 
 
 class BatchOperationListQuerySerializer(serializers.Serializer):
-    operation_type = serializers.ChoiceField(required=False, choices=VALID_BATCH_OPERATION_TYPES)
+    operation_type = serializers.ChoiceField(required=False, choices=VALID_BATCH_OPERATION_FILTER_TYPES)
     page = serializers.IntegerField(required=False, default=1, min_value=1)
     size = serializers.IntegerField(required=False, default=20, min_value=1, max_value=100)
 
@@ -357,3 +358,177 @@ class AnalyticsSummarySerializer(serializers.Serializer):
     monthly_inventory_loss_trend = MonthlyInventoryLossTrendSerializer(many=True)
     category_operation_summary = CategoryOperationSummarySerializer(many=True)
     high_risk_inventory_ranking = BatchOutputSerializer(many=True)
+
+
+class StocktakeListQuerySerializer(serializers.Serializer):
+    task_type = serializers.ChoiceField(required=False, choices=STOCKTAKE_TASK_TYPES)
+    status = serializers.ChoiceField(required=False, choices=STOCKTAKE_TASK_STATUSES)
+    page = serializers.IntegerField(required=False, default=1, min_value=1)
+    size = serializers.IntegerField(required=False, default=20, min_value=1, max_value=100)
+
+
+class StocktakeCreateSerializer(serializers.Serializer):
+    task_type = serializers.ChoiceField(choices=STOCKTAKE_TASK_TYPES)
+    scope_config = serializers.DictField(required=False)
+
+
+class StocktakeScopeUpdateSerializer(serializers.Serializer):
+    add_batch_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False)
+    add_product_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False)
+    add_categories = serializers.ListField(child=serializers.CharField(allow_blank=False), required=False)
+    add_locations = serializers.ListField(child=serializers.CharField(allow_blank=False), required=False)
+    add_expiry_statuses = serializers.ListField(child=serializers.CharField(allow_blank=False), required=False)
+    add_recent_changes_days = serializers.IntegerField(required=False, min_value=1, max_value=365)
+    remove_batch_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False)
+    scope_config = serializers.DictField(required=False)
+
+
+class StocktakeItemCountSerializer(serializers.Serializer):
+    counted_quantity = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0"))
+    status = serializers.ChoiceField(required=False, choices=("counted", "recount_required"))
+    remarks = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+
+class StocktakeDecisionSerializer(serializers.Serializer):
+    remarks = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+
+class StocktakeUserSerializer(serializers.Serializer):
+    id = serializers.IntegerField(allow_null=True)
+    username = serializers.CharField(allow_null=True)
+    display = serializers.CharField(allow_null=True)
+
+
+class StocktakeProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ["id", "barcode", "product_name", "category", "location", "unit", "manufacturer"]
+
+
+class StocktakeBatchSerializer(serializers.ModelSerializer):
+    product = StocktakeProductSerializer(read_only=True)
+    expire_date = serializers.SerializerMethodField()
+    days_until_expiry = serializers.SerializerMethodField()
+    expiry_status = serializers.SerializerMethodField()
+
+    def get_expire_date(self, obj):
+        return BatchOutputSerializer().get_expire_date(obj)
+
+    def get_days_until_expiry(self, obj):
+        return calc_days_until_expiry(obj.expire_date)
+
+    def get_expiry_status(self, obj):
+        return calc_expiry_status(obj.manufacture_date, obj.product.shelf_life_days, expire_date=obj.expire_date)
+
+    class Meta:
+        model = Batch
+        fields = [
+            "id",
+            "product_id",
+            "batch_code",
+            "quantity",
+            "received_at",
+            "manufacture_date",
+            "expire_date",
+            "status",
+            "remarks",
+            "days_until_expiry",
+            "expiry_status",
+            "product",
+        ]
+
+
+class StocktakeItemOutputSerializer(serializers.ModelSerializer):
+    batch = StocktakeBatchSerializer(read_only=True)
+    product = StocktakeProductSerializer(read_only=True)
+    counted_by = serializers.SerializerMethodField()
+
+    def get_counted_by(self, obj):
+        return user_payload(getattr(obj, "counted_by", None))
+
+    class Meta:
+        model = StocktakeItem
+        fields = [
+            "id",
+            "task_id",
+            "batch_id",
+            "product_id",
+            "snapshot_quantity",
+            "counted_quantity",
+            "difference_quantity",
+            "status",
+            "remarks",
+            "counted_by",
+            "counted_at",
+            "batch",
+            "product",
+        ]
+
+
+def user_payload(user):
+    if user is None:
+        return None
+    return {
+        "id": getattr(user, "id", None),
+        "username": getattr(user, "username", None),
+        "display": str(user),
+    }
+
+
+class StocktakeTaskOutputSerializer(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField()
+    submitted_by = serializers.SerializerMethodField()
+    approved_by = serializers.SerializerMethodField()
+    stats = serializers.SerializerMethodField()
+    items = serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        return user_payload(getattr(obj, "created_by", None))
+
+    def get_submitted_by(self, obj):
+        return user_payload(getattr(obj, "submitted_by", None))
+
+    def get_approved_by(self, obj):
+        return user_payload(getattr(obj, "approved_by", None))
+
+    def get_stats(self, obj):
+        from inventory.services import StocktakeService
+
+        return StocktakeService.task_stats(obj)
+
+    def get_items(self, obj):
+        include_items = self.context.get("include_items", False)
+        if not include_items:
+            return None
+        from inventory.services import StocktakeService
+
+        return StocktakeItemOutputSerializer(StocktakeService.list_items(obj.id), many=True).data
+
+    class Meta:
+        model = StocktakeTask
+        fields = [
+            "id",
+            "task_type",
+            "scope_config",
+            "status",
+            "created_by",
+            "submitted_by",
+            "approved_by",
+            "created_at",
+            "started_at",
+            "submitted_at",
+            "approved_at",
+            "stats",
+            "items",
+        ]
+
+
+class StocktakeAuditLogSerializer(serializers.ModelSerializer):
+    actor = serializers.SerializerMethodField()
+
+    def get_actor(self, obj):
+        return user_payload(getattr(obj, "actor", None))
+
+    class Meta:
+        model = StocktakeAuditLog
+        fields = ["id", "task_id", "action", "actor", "snapshot", "created_at"]

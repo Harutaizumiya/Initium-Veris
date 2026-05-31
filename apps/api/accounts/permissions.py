@@ -50,6 +50,13 @@ COMPONENT_PERMISSIONS: tuple[ComponentPermissionItem, ...] = (
     ComponentPermissionItem("qr_scans_create", "扫码审计", "qr_scans", "create", "提交单条或批量扫码审计"),
     ComponentPermissionItem("dashboard_read", "查看看板", "dashboard", "read", "查看库存看板概览"),
     ComponentPermissionItem("analytics_read", "查看分析", "analytics", "read", "查看库存分析汇总"),
+    ComponentPermissionItem("stocktakes_read", "查看盘点", "stocktakes", "read", "查看盘点任务、内容和审计记录"),
+    ComponentPermissionItem("stocktakes_create", "创建盘点", "stocktakes", "create", "创建盘点任务并生成默认范围"),
+    ComponentPermissionItem("stocktakes_update_scope", "调整盘点范围", "stocktakes", "update_scope", "调整盘点任务内容"),
+    ComponentPermissionItem("stocktakes_count", "录入盘点数量", "stocktakes", "count", "录入实盘数量并计算差异"),
+    ComponentPermissionItem("stocktakes_submit", "提交盘点", "stocktakes", "submit", "提交盘点任务等待复核"),
+    ComponentPermissionItem("stocktakes_approve", "审批盘点", "stocktakes", "approve", "审批盘点并生成库存调整流水"),
+    ComponentPermissionItem("stocktakes_cancel", "取消盘点", "stocktakes", "cancel", "取消盘点任务并保留记录"),
 )
 
 COMPONENT_PERMISSION_CODES = frozenset(item.code for item in COMPONENT_PERMISSIONS)

@@ -8,4 +8,5 @@ export * from "./inventory";
 export * from "./products";
 export * from "./qrScans";
 export * from "./queryKeys";
+export * from "./stocktakes";
 export * from "./types";

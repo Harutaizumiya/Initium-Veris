@@ -1,6 +1,7 @@
 import type { BatchListParams, BatchOperationListParams } from "./batches";
 import type { ProductListParams } from "./products";
 import type { QrScanListParams } from "./qrScans";
+import type { StocktakeListParams } from "./stocktakes";
 
 export const queryKeys = {
   dashboard: {
@@ -34,6 +35,13 @@ export const queryKeys = {
   qrScans: {
     all: ["qr-scans"] as const,
     list: (params: QrScanListParams = {}) => [...queryKeys.qrScans.all, "list", params] as const,
+  },
+  stocktakes: {
+    all: ["stocktakes"] as const,
+    lists: () => [...queryKeys.stocktakes.all, "list"] as const,
+    list: (params: StocktakeListParams = {}) => [...queryKeys.stocktakes.lists(), params] as const,
+    detail: (taskId: number) => [...queryKeys.stocktakes.all, "detail", taskId] as const,
+    auditLogs: (taskId: number) => [...queryKeys.stocktakes.all, "audit-logs", taskId] as const,
   },
   authManagement: {
     all: ["auth-management"] as const,

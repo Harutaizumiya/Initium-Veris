@@ -17,6 +17,15 @@ from inventory.views import (
     ProductDetailView,
     QrScanBulkView,
     QrScanCollectionView,
+    StocktakeApproveView,
+    StocktakeAuditLogView,
+    StocktakeCancelView,
+    StocktakeCollectionView,
+    StocktakeDetailView,
+    StocktakeItemCountView,
+    StocktakeScopeView,
+    StocktakeStartView,
+    StocktakeSubmitView,
 )
 
 urlpatterns = [
@@ -40,4 +49,13 @@ urlpatterns = [
     path("batches/<int:batch_id>", BatchDetailView.as_view(), name="batch-detail"),
     path("qr-scans", QrScanCollectionView.as_view(), name="qr-scan-collection"),
     path("qr-scans/bulk", QrScanBulkView.as_view(), name="qr-scan-bulk"),
+    path("stocktakes", StocktakeCollectionView.as_view(), name="stocktake-collection"),
+    path("stocktakes/<int:task_id>", StocktakeDetailView.as_view(), name="stocktake-detail"),
+    path("stocktakes/<int:task_id>/scope", StocktakeScopeView.as_view(), name="stocktake-scope"),
+    path("stocktakes/<int:task_id>/start", StocktakeStartView.as_view(), name="stocktake-start"),
+    path("stocktakes/<int:task_id>/items/<int:item_id>/count", StocktakeItemCountView.as_view(), name="stocktake-item-count"),
+    path("stocktakes/<int:task_id>/submit", StocktakeSubmitView.as_view(), name="stocktake-submit"),
+    path("stocktakes/<int:task_id>/approve", StocktakeApproveView.as_view(), name="stocktake-approve"),
+    path("stocktakes/<int:task_id>/cancel", StocktakeCancelView.as_view(), name="stocktake-cancel"),
+    path("stocktakes/<int:task_id>/audit-logs", StocktakeAuditLogView.as_view(), name="stocktake-audit-logs"),
 ]

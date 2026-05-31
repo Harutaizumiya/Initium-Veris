@@ -16,7 +16,7 @@ from common.cache_utils import (
     CACHE_GROUP_PRODUCT_CATEGORIES,
     invalidate_cache_groups,
 )
-from common.exceptions import ConflictApiError, NotFoundApiError
+from common.exceptions import ConflictApiError, NotFoundApiError, ValidationApiError
 from inventory.expiry import (
     ALERT_EXPIRY_STATUSES,
     EXPIRY_STATUS_EXPIRED,
@@ -26,7 +26,17 @@ from inventory.expiry import (
     calc_expiry_status,
     normalize_expiry_datetime,
 )
-from inventory.models import Batch, BatchOperation, BatchQrCredential, InventoryAuditLog, Product, QrScanAuditLog
+from inventory.models import (
+    Batch,
+    BatchOperation,
+    BatchQrCredential,
+    InventoryAuditLog,
+    Product,
+    QrScanAuditLog,
+    StocktakeAuditLog,
+    StocktakeItem,
+    StocktakeTask,
+)
 
 
 QR_CODE_PREFIX = "OB1"
@@ -47,6 +57,26 @@ QR_SCAN_STATUSES = (
     QR_SCAN_STATUS_REVOKED,
     QR_SCAN_STATUS_NOT_FOUND,
 )
+
+STOCKTAKE_TASK_TYPES = (
+    StocktakeTask.TYPE_DAILY,
+    StocktakeTask.TYPE_WEEKLY,
+    StocktakeTask.TYPE_MONTHLY,
+)
+STOCKTAKE_TASK_STATUSES = (
+    StocktakeTask.STATUS_DRAFT,
+    StocktakeTask.STATUS_ACTIVE,
+    StocktakeTask.STATUS_SUBMITTED,
+    StocktakeTask.STATUS_APPROVED,
+    StocktakeTask.STATUS_CANCELLED,
+)
+STOCKTAKE_ITEM_STATUSES = (
+    StocktakeItem.STATUS_PENDING,
+    StocktakeItem.STATUS_COUNTED,
+    StocktakeItem.STATUS_RECOUNT_REQUIRED,
+    StocktakeItem.STATUS_APPROVED,
+)
+STOCKTAKE_ADJUST_OPERATION_TYPE = "adjust"
 
 
 def _raise_conflict(detail: str, exc: Exception) -> None:
@@ -1180,6 +1210,505 @@ class QrScanService:
         return audit.scanner_user
 
 
+def _actor_snapshot(actor) -> dict | None:
+    if actor is None:
+        return None
+    return {
+        "id": getattr(actor, "id", None),
+        "username": getattr(actor, "username", None),
+        "display": str(actor),
+    }
+
+
+class StocktakeService:
+    active_item_statuses = (StocktakeItem.STATUS_COUNTED, StocktakeItem.STATUS_APPROVED)
+
+    @classmethod
+    def list_tasks(cls, *, task_type: str | None, status: str | None, page: int, size: int):
+        try:
+            queryset = StocktakeTask.objects.select_related("created_by", "submitted_by", "approved_by").order_by(
+                "-created_at",
+                "-id",
+            )
+            if task_type:
+                queryset = queryset.filter(task_type=task_type)
+            if status:
+                queryset = queryset.filter(status=status)
+            total = queryset.count()
+            offset = (page - 1) * size
+            return list(queryset[offset : offset + size]), total
+        except DatabaseError as exc:
+            _raise_conflict("Unable to list stocktake tasks", exc)
+
+    @classmethod
+    def get_task(cls, task_id: int):
+        try:
+            return StocktakeTask.objects.select_related("created_by", "submitted_by", "approved_by").get(pk=task_id)
+        except StocktakeTask.DoesNotExist as exc:
+            raise NotFoundApiError(f"Stocktake task {task_id} not found") from exc
+        except DatabaseError as exc:
+            _raise_conflict("Unable to load stocktake task", exc)
+
+    @classmethod
+    def list_items(cls, task_id: int):
+        return list(
+            StocktakeItem.objects.select_related("batch__product", "product", "counted_by")
+            .filter(task_id=task_id)
+            .order_by("batch__product__product_name", "batch__batch_code", "id")
+        )
+
+    @classmethod
+    def task_stats(cls, task) -> dict:
+        items = list(getattr(task, "_prefetched_items", None) or StocktakeItem.objects.filter(task=task))
+        total_items = len(items)
+        counted_items = sum(1 for item in items if item.status in cls.active_item_statuses)
+        pending_items = sum(1 for item in items if item.status == StocktakeItem.STATUS_PENDING)
+        recount_items = sum(1 for item in items if item.status == StocktakeItem.STATUS_RECOUNT_REQUIRED)
+        difference_items = sum(1 for item in items if _decimal_or_zero(item.difference_quantity) != Decimal("0"))
+        total_difference_quantity = sum(
+            (_decimal_or_zero(item.difference_quantity) for item in items),
+            Decimal("0"),
+        )
+        return {
+            "total_items": total_items,
+            "counted_items": counted_items,
+            "pending_items": pending_items,
+            "recount_items": recount_items,
+            "difference_items": difference_items,
+            "total_difference_quantity": total_difference_quantity,
+            "progress": round(counted_items / total_items, 4) if total_items else 0,
+        }
+
+    @classmethod
+    def create_task(cls, data: dict, *, actor=None):
+        scope_config = data.get("scope_config") or {}
+        try:
+            with transaction.atomic():
+                task = StocktakeTask.objects.create(
+                    task_type=data["task_type"],
+                    scope_config=scope_config,
+                    status=StocktakeTask.STATUS_DRAFT,
+                    created_by=actor,
+                )
+                batches = cls._default_scope_batches(task.task_type, scope_config)
+                added_ids = cls._add_batches(task, batches)
+                cls._record_audit(
+                    task,
+                    "create",
+                    actor=actor,
+                    snapshot={
+                        "task_type": task.task_type,
+                        "scope_config": scope_config,
+                        "default_item_count": len(added_ids),
+                    },
+                )
+                cls._record_audit(
+                    task,
+                    "generate_default_scope",
+                    actor=actor,
+                    snapshot={"batch_ids": added_ids},
+                )
+        except DatabaseError as exc:
+            _raise_conflict("Unable to create stocktake task", exc)
+        return task
+
+    @classmethod
+    def update_scope(cls, task_id: int, data: dict, *, actor=None):
+        try:
+            with transaction.atomic():
+                task = StocktakeTask.objects.select_for_update().get(pk=task_id)
+                if task.status not in {StocktakeTask.STATUS_DRAFT, StocktakeTask.STATUS_ACTIVE}:
+                    raise ConflictApiError("Stocktake scope cannot be changed in the current status")
+
+                removed_ids: list[int] = []
+                if data.get("remove_batch_ids"):
+                    if task.status != StocktakeTask.STATUS_DRAFT:
+                        raise ConflictApiError("Active stocktake items cannot be removed")
+                    removed_ids = list(data["remove_batch_ids"])
+                    StocktakeItem.objects.filter(task=task, batch_id__in=removed_ids).delete()
+
+                batches = cls._scope_batches_from_adjustment(data)
+                added_ids = cls._add_batches(task, batches)
+                if data.get("scope_config"):
+                    task.scope_config = {**(task.scope_config or {}), **data["scope_config"]}
+                    task.save(update_fields=["scope_config"])
+
+                cls._record_audit(
+                    task,
+                    "update_scope",
+                    actor=actor,
+                    snapshot={
+                        "added_batch_ids": added_ids,
+                        "removed_batch_ids": removed_ids,
+                        "status": task.status,
+                    },
+                )
+        except StocktakeTask.DoesNotExist as exc:
+            raise NotFoundApiError(f"Stocktake task {task_id} not found") from exc
+        except IntegrityError as exc:
+            raise ConflictApiError("Unable to update stocktake scope") from exc
+        except DatabaseError as exc:
+            _raise_conflict("Unable to update stocktake scope", exc)
+        return task
+
+    @classmethod
+    def start_task(cls, task_id: int, *, actor=None):
+        task = cls.get_task(task_id)
+        if task.status != StocktakeTask.STATUS_DRAFT:
+            raise ConflictApiError("Only draft stocktakes can be started")
+        if not StocktakeItem.objects.filter(task=task).exists():
+            raise ConflictApiError("Stocktake task has no items")
+        task.status = StocktakeTask.STATUS_ACTIVE
+        task.started_at = timezone.now()
+        try:
+            with transaction.atomic():
+                task.save(update_fields=["status", "started_at"])
+                cls._record_audit(task, "start", actor=actor, snapshot={"status": task.status})
+        except DatabaseError as exc:
+            _raise_conflict("Unable to start stocktake task", exc)
+        return task
+
+    @classmethod
+    def count_item(cls, task_id: int, item_id: int, data: dict, *, actor=None):
+        try:
+            with transaction.atomic():
+                task = StocktakeTask.objects.select_for_update().get(pk=task_id)
+                if task.status != StocktakeTask.STATUS_ACTIVE:
+                    raise ConflictApiError("Stocktake quantities can only be entered while active")
+                item = StocktakeItem.objects.select_for_update().select_related("batch__product").get(
+                    pk=item_id,
+                    task=task,
+                )
+                counted_quantity = data["counted_quantity"]
+                item.counted_quantity = counted_quantity
+                item.difference_quantity = counted_quantity - item.snapshot_quantity
+                item.status = data.get("status") or StocktakeItem.STATUS_COUNTED
+                item.remarks = data.get("remarks")
+                item.counted_by = actor
+                item.counted_at = timezone.now()
+                item.save(
+                    update_fields=[
+                        "counted_quantity",
+                        "difference_quantity",
+                        "status",
+                        "remarks",
+                        "counted_by",
+                        "counted_at",
+                    ]
+                )
+                cls._record_audit(
+                    task,
+                    "count_item",
+                    actor=actor,
+                    snapshot=cls._item_snapshot(item),
+                )
+        except StocktakeTask.DoesNotExist as exc:
+            raise NotFoundApiError(f"Stocktake task {task_id} not found") from exc
+        except StocktakeItem.DoesNotExist as exc:
+            raise NotFoundApiError(f"Stocktake item {item_id} not found") from exc
+        except DatabaseError as exc:
+            _raise_conflict("Unable to count stocktake item", exc)
+        return item
+
+    @classmethod
+    def submit_task(cls, task_id: int, *, actor=None):
+        try:
+            with transaction.atomic():
+                task = StocktakeTask.objects.select_for_update().get(pk=task_id)
+                if task.status != StocktakeTask.STATUS_ACTIVE:
+                    raise ConflictApiError("Only active stocktakes can be submitted")
+                blocking_count = StocktakeItem.objects.filter(
+                    task=task,
+                    status__in=[StocktakeItem.STATUS_PENDING, StocktakeItem.STATUS_RECOUNT_REQUIRED],
+                ).count()
+                if blocking_count:
+                    raise ConflictApiError("Stocktake has pending or recount-required items")
+                task.status = StocktakeTask.STATUS_SUBMITTED
+                task.submitted_by = actor
+                task.submitted_at = timezone.now()
+                task.save(update_fields=["status", "submitted_by", "submitted_at"])
+                cls._record_audit(task, "submit", actor=actor, snapshot=cls.task_stats(task))
+        except StocktakeTask.DoesNotExist as exc:
+            raise NotFoundApiError(f"Stocktake task {task_id} not found") from exc
+        except DatabaseError as exc:
+            _raise_conflict("Unable to submit stocktake task", exc)
+        return task
+
+    @classmethod
+    def approve_task(cls, task_id: int, data: dict, *, actor=None):
+        try:
+            with transaction.atomic():
+                task = StocktakeTask.objects.select_for_update().get(pk=task_id)
+                if task.status != StocktakeTask.STATUS_SUBMITTED:
+                    raise ConflictApiError("Only submitted stocktakes can be approved")
+                items = list(
+                    StocktakeItem.objects.select_for_update()
+                    .select_related("batch__product", "product")
+                    .filter(task=task)
+                    .order_by("id")
+                )
+                if any(item.counted_quantity is None for item in items):
+                    raise ConflictApiError("Stocktake has uncounted items")
+
+                operations = []
+                for item in items:
+                    difference = _decimal_or_zero(item.difference_quantity)
+                    if difference == Decimal("0"):
+                        item.status = StocktakeItem.STATUS_APPROVED
+                        item.save(update_fields=["status"])
+                        continue
+
+                    batch = Batch.objects.select_for_update().get(pk=item.batch_id)
+                    if batch.quantity is None:
+                        raise ConflictApiError("Batch quantity is unavailable")
+                    quantity_after = batch.quantity + difference
+                    if quantity_after < Decimal("0"):
+                        raise ConflictApiError("Stocktake adjustment would make inventory negative")
+
+                    update_fields = BatchOperationService._apply_batch_quantity_state(batch, quantity_after)
+                    batch.quantity = quantity_after
+                    batch.save(update_fields=update_fields)
+                    operation = BatchOperation.objects.create(
+                        batch=batch,
+                        operation_type=STOCKTAKE_ADJUST_OPERATION_TYPE,
+                        quantity=difference,
+                        quantity_after=quantity_after,
+                        remarks=cls._adjustment_remarks(task, item, data.get("remarks")),
+                        operator=actor,
+                    )
+                    operations.append(operation)
+                    item.status = StocktakeItem.STATUS_APPROVED
+                    item.save(update_fields=["status"])
+                    cls._record_audit(
+                        task,
+                        "create_inventory_adjustment",
+                        actor=actor,
+                        snapshot={
+                            "item": cls._item_snapshot(item),
+                            "operation_id": operation.id,
+                            "quantity_after": _json_value(quantity_after),
+                        },
+                    )
+
+                task.status = StocktakeTask.STATUS_APPROVED
+                task.approved_by = actor
+                task.approved_at = timezone.now()
+                task.save(update_fields=["status", "approved_by", "approved_at"])
+                cls._record_audit(
+                    task,
+                    "approve",
+                    actor=actor,
+                    snapshot={
+                        "remarks": data.get("remarks"),
+                        "adjustment_operation_ids": [operation.id for operation in operations],
+                    },
+                )
+        except StocktakeTask.DoesNotExist as exc:
+            raise NotFoundApiError(f"Stocktake task {task_id} not found") from exc
+        except Batch.DoesNotExist as exc:
+            raise NotFoundApiError("Stocktake batch not found") from exc
+        except DatabaseError as exc:
+            _raise_conflict("Unable to approve stocktake task", exc)
+        invalidate_cache_groups(CACHE_GROUP_INVENTORY_READ)
+        return task
+
+    @classmethod
+    def cancel_task(cls, task_id: int, data: dict, *, actor=None):
+        try:
+            with transaction.atomic():
+                task = StocktakeTask.objects.select_for_update().get(pk=task_id)
+                if task.status not in {
+                    StocktakeTask.STATUS_DRAFT,
+                    StocktakeTask.STATUS_ACTIVE,
+                    StocktakeTask.STATUS_SUBMITTED,
+                }:
+                    raise ConflictApiError("Stocktake cannot be cancelled in the current status")
+                task.status = StocktakeTask.STATUS_CANCELLED
+                task.save(update_fields=["status"])
+                cls._record_audit(task, "cancel", actor=actor, snapshot={"remarks": data.get("remarks")})
+        except StocktakeTask.DoesNotExist as exc:
+            raise NotFoundApiError(f"Stocktake task {task_id} not found") from exc
+        except DatabaseError as exc:
+            _raise_conflict("Unable to cancel stocktake task", exc)
+        return task
+
+    @staticmethod
+    def list_audit_logs(task_id: int):
+        try:
+            StocktakeTask.objects.only("id").get(pk=task_id)
+            return list(
+                StocktakeAuditLog.objects.select_related("actor")
+                .filter(task_id=task_id)
+                .order_by("-created_at", "-id")
+            )
+        except StocktakeTask.DoesNotExist as exc:
+            raise NotFoundApiError(f"Stocktake task {task_id} not found") from exc
+        except DatabaseError as exc:
+            _raise_conflict("Unable to list stocktake audit logs", exc)
+
+    @classmethod
+    def _record_audit(cls, task, action: str, *, actor=None, snapshot: dict | None = None):
+        StocktakeAuditLog.objects.create(
+            task=task,
+            action=action,
+            actor=actor,
+            snapshot={**(snapshot or {}), "actor": _actor_snapshot(actor)},
+        )
+
+    @classmethod
+    def _add_batches(cls, task, batches: list[Batch]) -> list[int]:
+        added_ids: list[int] = []
+        existing_ids = set(StocktakeItem.objects.filter(task=task).values_list("batch_id", flat=True))
+        for batch in batches:
+            if batch.id in existing_ids:
+                continue
+            StocktakeItem.objects.create(
+                task=task,
+                batch=batch,
+                product=batch.product,
+                snapshot_quantity=_decimal_or_zero(batch.quantity),
+                status=StocktakeItem.STATUS_PENDING,
+            )
+            added_ids.append(batch.id)
+            existing_ids.add(batch.id)
+        return added_ids
+
+    @classmethod
+    def _default_scope_batches(cls, task_type: str, scope_config: dict) -> list[Batch]:
+        if task_type == StocktakeTask.TYPE_DAILY:
+            return cls._daily_scope_batches(scope_config)
+        if task_type == StocktakeTask.TYPE_WEEKLY:
+            return cls._weekly_scope_batches(scope_config)
+        if task_type == StocktakeTask.TYPE_MONTHLY:
+            return cls._monthly_scope_batches(scope_config)
+        raise ValidationApiError("Invalid stocktake task type")
+
+    @classmethod
+    def _base_batch_queryset(cls):
+        return Batch.objects.select_related("product").filter(quantity__gt=Decimal("0")).exclude(status="used_up")
+
+    @classmethod
+    def _daily_scope_batches(cls, scope_config: dict) -> list[Batch]:
+        now = timezone.now()
+        today_start = _start_of_day(timezone.localdate())
+        touched_ids = BatchOperation.objects.filter(created_at__gte=today_start).values_list("batch_id", flat=True)
+        query = Q(id__in=touched_ids)
+        product_ids = cls._int_list(scope_config.get("product_ids"))
+        categories = cls._string_list(scope_config.get("categories"))
+        if product_ids:
+            query |= Q(product_id__in=product_ids)
+        if categories:
+            query |= Q(product__category__in=categories)
+        batches = list(cls._base_batch_queryset().filter(query).order_by("product__product_name", "batch_code"))
+        near_expiry_batches = [batch for batch in cls._base_batch_queryset() if _is_near_expiry_batch(batch, now)]
+        return cls._dedupe_batches([*near_expiry_batches, *batches])
+
+    @classmethod
+    def _weekly_scope_batches(cls, scope_config: dict) -> list[Batch]:
+        recent_start = timezone.now() - timedelta(days=7)
+        recent_ids = BatchOperation.objects.filter(created_at__gte=recent_start).values_list("batch_id", flat=True)
+        queryset = cls._base_batch_queryset()
+        categories = cls._string_list(scope_config.get("categories"))
+        locations = cls._string_list(scope_config.get("locations"))
+        if categories:
+            queryset = queryset.filter(product__category__in=categories)
+        if locations:
+            queryset = queryset.filter(product__location__in=locations)
+        scoped = list(queryset.order_by("product__product_name", "batch_code"))
+        recent = list(cls._base_batch_queryset().filter(id__in=recent_ids))
+        return cls._dedupe_batches([*scoped, *recent])
+
+    @classmethod
+    def _monthly_scope_batches(cls, scope_config: dict) -> list[Batch]:
+        queryset = Batch.objects.select_related("product").filter(quantity__gt=Decimal("0"))
+        if not scope_config.get("include_used_up"):
+            queryset = queryset.exclude(status="used_up")
+        product_ids = cls._int_list(scope_config.get("product_ids"))
+        categories = cls._string_list(scope_config.get("categories"))
+        locations = cls._string_list(scope_config.get("locations"))
+        if product_ids:
+            queryset = queryset.filter(product_id__in=product_ids)
+        if categories:
+            queryset = queryset.filter(product__category__in=categories)
+        if locations:
+            queryset = queryset.filter(product__location__in=locations)
+        return list(queryset.order_by("product__product_name", "batch_code"))
+
+    @classmethod
+    def _scope_batches_from_adjustment(cls, data: dict) -> list[Batch]:
+        batches: list[Batch] = []
+        batch_ids = cls._int_list(data.get("add_batch_ids"))
+        product_ids = cls._int_list(data.get("add_product_ids"))
+        categories = cls._string_list(data.get("add_categories"))
+        locations = cls._string_list(data.get("add_locations"))
+        expiry_statuses = cls._string_list(data.get("add_expiry_statuses"))
+        recent_days = data.get("add_recent_changes_days")
+        if batch_ids:
+            batches.extend(cls._base_batch_queryset().filter(id__in=batch_ids))
+        if product_ids:
+            batches.extend(cls._base_batch_queryset().filter(product_id__in=product_ids))
+        if categories:
+            batches.extend(cls._base_batch_queryset().filter(product__category__in=categories))
+        if locations:
+            batches.extend(cls._base_batch_queryset().filter(product__location__in=locations))
+        if expiry_statuses:
+            now = timezone.now()
+            batches.extend(
+                batch
+                for batch in cls._base_batch_queryset()
+                if _batch_expiry_status(batch, now) in set(expiry_statuses)
+            )
+        if recent_days:
+            start_at = timezone.now() - timedelta(days=int(recent_days))
+            recent_ids = BatchOperation.objects.filter(created_at__gte=start_at).values_list("batch_id", flat=True)
+            batches.extend(cls._base_batch_queryset().filter(id__in=recent_ids))
+        return cls._dedupe_batches(batches)
+
+    @staticmethod
+    def _dedupe_batches(batches) -> list[Batch]:
+        output: list[Batch] = []
+        seen: set[int] = set()
+        for batch in batches:
+            if batch.id in seen:
+                continue
+            seen.add(batch.id)
+            output.append(batch)
+        return output
+
+    @staticmethod
+    def _int_list(value) -> list[int]:
+        if not value:
+            return []
+        return [int(item) for item in value]
+
+    @staticmethod
+    def _string_list(value) -> list[str]:
+        if not value:
+            return []
+        return [str(item).strip() for item in value if str(item).strip()]
+
+    @staticmethod
+    def _item_snapshot(item) -> dict:
+        return {
+            "id": item.id,
+            "task_id": item.task_id,
+            "batch_id": item.batch_id,
+            "product_id": item.product_id,
+            "snapshot_quantity": _json_value(item.snapshot_quantity),
+            "counted_quantity": _json_value(item.counted_quantity),
+            "difference_quantity": _json_value(item.difference_quantity),
+            "status": item.status,
+            "remarks": item.remarks,
+        }
+
+    @staticmethod
+    def _adjustment_remarks(task, item, approval_remarks: str | None) -> str:
+        parts = [f"stocktake:{task.id}", f"item:{item.id}"]
+        if approval_remarks:
+            parts.append(approval_remarks)
+        return " | ".join(parts)[:255]
+
+
 class BatchOperationService:
     decrease_operation_types = {"loss", "deduct"}
     reverse_operation_types = {
@@ -1235,6 +1764,8 @@ class BatchOperationService:
                 original_operation = BatchOperation.objects.select_for_update().get(pk=operation_id, batch_id=batch_id)
                 if original_operation.reversed_operation_id is not None:
                     raise ConflictApiError("Reversal operation cannot be reverted")
+                if original_operation.operation_type == STOCKTAKE_ADJUST_OPERATION_TYPE:
+                    raise ConflictApiError("Stocktake adjustment operations cannot be reverted")
                 if BatchOperation.objects.filter(reversed_operation_id=original_operation.id).exists():
                     raise ConflictApiError("Batch operation has already been reverted")
 

@@ -158,3 +158,112 @@ class InventoryAuditLog(models.Model):
             models.Index(fields=["actor", "-created_at"], name="inv_audit_actor_idx"),
             models.Index(fields=["action"], name="inv_audit_action_idx"),
         ]
+
+
+class StocktakeTask(models.Model):
+    TYPE_DAILY = "daily"
+    TYPE_WEEKLY = "weekly"
+    TYPE_MONTHLY = "monthly"
+
+    STATUS_DRAFT = "draft"
+    STATUS_ACTIVE = "active"
+    STATUS_SUBMITTED = "submitted"
+    STATUS_APPROVED = "approved"
+    STATUS_CANCELLED = "cancelled"
+
+    id = models.BigAutoField(primary_key=True)
+    task_type = models.CharField(max_length=20)
+    scope_config = models.JSONField(default=dict)
+    status = models.CharField(max_length=20, default=STATUS_DRAFT)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        related_name="created_stocktake_tasks",
+        blank=True,
+        null=True,
+    )
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        related_name="submitted_stocktake_tasks",
+        blank=True,
+        null=True,
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        related_name="approved_stocktake_tasks",
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    started_at = models.DateTimeField(blank=True, null=True)
+    submitted_at = models.DateTimeField(blank=True, null=True)
+    approved_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        db_table = "stocktake_tasks"
+        indexes = [
+            models.Index(fields=["status", "-created_at"], name="stocktake_tasks_status_idx"),
+            models.Index(fields=["task_type", "-created_at"], name="stocktake_tasks_type_idx"),
+            models.Index(fields=["created_by", "-created_at"], name="stocktake_tasks_creator_idx"),
+        ]
+
+
+class StocktakeItem(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_COUNTED = "counted"
+    STATUS_RECOUNT_REQUIRED = "recount_required"
+    STATUS_APPROVED = "approved"
+
+    id = models.BigAutoField(primary_key=True)
+    task = models.ForeignKey(StocktakeTask, on_delete=models.CASCADE, related_name="items")
+    batch = models.ForeignKey(Batch, on_delete=models.DO_NOTHING, related_name="stocktake_items")
+    product = models.ForeignKey(Product, on_delete=models.DO_NOTHING, related_name="stocktake_items")
+    snapshot_quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    counted_quantity = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    difference_quantity = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    status = models.CharField(max_length=20, default=STATUS_PENDING)
+    remarks = models.CharField(max_length=255, blank=True, null=True)
+    counted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        related_name="counted_stocktake_items",
+        blank=True,
+        null=True,
+    )
+    counted_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        db_table = "stocktake_items"
+        indexes = [
+            models.Index(fields=["task", "status"], name="stocktake_item_task_status_idx"),
+            models.Index(fields=["batch"], name="stocktake_items_batch_idx"),
+            models.Index(fields=["product"], name="stocktake_items_product_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=["task", "batch"], name="stocktake_items_task_batch_uniq"),
+        ]
+
+
+class StocktakeAuditLog(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    task = models.ForeignKey(StocktakeTask, on_delete=models.CASCADE, related_name="audit_logs")
+    action = models.CharField(max_length=50)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.DO_NOTHING,
+        related_name="stocktake_audit_logs",
+        blank=True,
+        null=True,
+    )
+    snapshot = models.JSONField(default=dict)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "stocktake_audit_logs"
+        indexes = [
+            models.Index(fields=["task", "-created_at"], name="stocktake_audit_task_idx"),
+            models.Index(fields=["actor", "-created_at"], name="stocktake_audit_actor_idx"),
+            models.Index(fields=["action"], name="stocktake_audit_action_idx"),
+        ]

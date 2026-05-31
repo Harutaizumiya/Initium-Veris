@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from common.cache_utils import CACHE_GROUP_INVENTORY_READ, CACHE_GROUP_PRODUCT_CATEGORIES
 from common.exceptions import ConflictApiError, NotFoundApiError
-from inventory.models import Batch, InventoryAuditLog, Product
+from inventory.models import Batch, InventoryAuditLog, Product, StocktakeItem
 from inventory.expiry import calc_days_until_expiry, calc_expiry_progress, calc_expiry_status
 from inventory.services import (
     AnalyticsService,
@@ -21,6 +21,7 @@ from inventory.services import (
     ProductService,
     QrCredentialService,
     QrScanService,
+    StocktakeService,
 )
 
 
@@ -1089,6 +1090,118 @@ def fake_batch(
             location=location,
         ),
     )
+
+
+class StocktakeServiceTests(SimpleTestCase):
+    def test_task_stats_counts_progress_and_difference_totals(self):
+        task = Mock()
+        task._prefetched_items = [
+            SimpleNamespace(status="pending", difference_quantity=None),
+            SimpleNamespace(status="counted", difference_quantity=Decimal("2.00")),
+            SimpleNamespace(status="recount_required", difference_quantity=Decimal("-1.00")),
+        ]
+
+        stats = StocktakeService.task_stats(task)
+
+        self.assertEqual(stats["total_items"], 3)
+        self.assertEqual(stats["counted_items"], 1)
+        self.assertEqual(stats["pending_items"], 1)
+        self.assertEqual(stats["recount_items"], 1)
+        self.assertEqual(stats["difference_items"], 2)
+        self.assertEqual(stats["total_difference_quantity"], Decimal("1.00"))
+
+    @patch("inventory.services.StocktakeService._record_audit")
+    @patch("inventory.services.StocktakeItem.objects")
+    @patch("inventory.services.StocktakeTask.objects")
+    @patch("inventory.services.transaction.atomic")
+    def test_count_item_calculates_difference_and_count_metadata(
+        self,
+        mock_atomic,
+        mock_task_objects,
+        mock_item_objects,
+        mock_record_audit,
+    ):
+        mock_atomic.return_value.__enter__.return_value = None
+        actor = Mock(id=123)
+        task = Mock(id=1, status="active")
+        item = Mock(id=9, task_id=1, batch_id=3, product_id=7, snapshot_quantity=Decimal("10.00"))
+        mock_task_objects.select_for_update.return_value.get.return_value = task
+        mock_item_objects.select_for_update.return_value.select_related.return_value.get.return_value = item
+
+        result = StocktakeService.count_item(
+            1,
+            9,
+            {"counted_quantity": Decimal("8.00"), "remarks": "checked"},
+            actor=actor,
+        )
+
+        self.assertIs(result, item)
+        self.assertEqual(item.counted_quantity, Decimal("8.00"))
+        self.assertEqual(item.difference_quantity, Decimal("-2.00"))
+        self.assertEqual(item.status, "counted")
+        self.assertIs(item.counted_by, actor)
+        item.save.assert_called_once()
+        mock_record_audit.assert_called_once()
+
+    @patch("inventory.services.StocktakeItem.objects")
+    @patch("inventory.services.StocktakeTask.objects")
+    @patch("inventory.services.transaction.atomic")
+    def test_submit_rejects_pending_or_recount_items(self, mock_atomic, mock_task_objects, mock_item_objects):
+        mock_atomic.return_value.__enter__.return_value = None
+        task = Mock(id=1, status="active")
+        mock_task_objects.select_for_update.return_value.get.return_value = task
+        mock_item_objects.filter.return_value.count.return_value = 1
+
+        with self.assertRaises(ConflictApiError):
+            StocktakeService.submit_task(1, actor=Mock(id=123))
+
+    @patch("inventory.services.invalidate_cache_groups")
+    @patch("inventory.services.StocktakeService._record_audit")
+    @patch("inventory.services.BatchOperation.objects.create")
+    @patch("inventory.services.Batch.objects")
+    @patch("inventory.services.StocktakeItem.objects")
+    @patch("inventory.services.StocktakeTask.objects")
+    @patch("inventory.services.transaction.atomic")
+    def test_approve_creates_signed_adjust_operation(
+        self,
+        mock_atomic,
+        mock_task_objects,
+        mock_item_objects,
+        mock_batch_objects,
+        mock_operation_create,
+        mock_record_audit,
+        mock_invalidate,
+    ):
+        mock_atomic.return_value.__enter__.return_value = None
+        actor = Mock(id=123)
+        task = Mock(id=1, status="submitted")
+        item = Mock(
+            id=9,
+            task_id=1,
+            batch_id=3,
+            product_id=7,
+            counted_quantity=Decimal("8.00"),
+            difference_quantity=Decimal("-2.00"),
+        )
+        batch = Mock(id=3, quantity=Decimal("10.00"), status="opened")
+        operation = Mock(id=99)
+        mock_task_objects.select_for_update.return_value.get.return_value = task
+        mock_item_objects.select_for_update.return_value.select_related.return_value.filter.return_value.order_by.return_value = [item]
+        mock_batch_objects.select_for_update.return_value.get.return_value = batch
+        mock_operation_create.return_value = operation
+
+        result = StocktakeService.approve_task(1, {"remarks": "approved"}, actor=actor)
+
+        self.assertIs(result, task)
+        self.assertEqual(batch.quantity, Decimal("8.00"))
+        batch.save.assert_called_once_with(update_fields=["quantity"])
+        mock_operation_create.assert_called_once()
+        self.assertEqual(mock_operation_create.call_args.kwargs["operation_type"], "adjust")
+        self.assertEqual(mock_operation_create.call_args.kwargs["quantity"], Decimal("-2.00"))
+        self.assertEqual(mock_operation_create.call_args.kwargs["quantity_after"], Decimal("8.00"))
+        self.assertEqual(item.status, "approved")
+        self.assertEqual(task.status, "approved")
+        mock_invalidate.assert_called_once_with(CACHE_GROUP_INVENTORY_READ)
 
 
 def fake_operation(operation_type, quantity, created_at, *, category="drink"):

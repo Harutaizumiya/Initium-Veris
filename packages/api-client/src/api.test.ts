@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createApiClient } from "./client";
 import { createQrScan } from "./qrScans";
 import { createProduct, listProducts } from "./products";
+import { approveStocktake, countStocktakeItem, createStocktake, updateStocktakeScope } from "./stocktakes";
 
 describe("business API helpers", () => {
   it("keeps product request bodies in the backend snake_case contract", async () => {
@@ -118,5 +119,38 @@ describe("business API helpers", () => {
       clientScanId: "client-scan-001",
       scannedAt: null,
     });
+  });
+
+  it("keeps stocktake workflow request bodies in the backend contract", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { ok: true } }),
+    });
+    const client = createApiClient({ fetchFn: fetchMock, getCsrfToken: () => "csrf-token" });
+
+    await createStocktake({ task_type: "daily", scope_config: { categories: ["drink"] } }, client);
+    await updateStocktakeScope(7, { add_batch_ids: [3], remove_batch_ids: [5] }, client);
+    await countStocktakeItem(7, 9, { counted_quantity: " 8.00 ", remarks: " checked " }, client);
+    await approveStocktake(7, { remarks: " approved " }, client);
+
+    expect(fetchMock.mock.calls.map((call) => [call[0], JSON.parse(call[1].body)])).toEqual([
+      [
+        "http://localhost:8000/api/stocktakes",
+        { task_type: "daily", scope_config: { categories: ["drink"] } },
+      ],
+      [
+        "http://localhost:8000/api/stocktakes/7/scope",
+        { add_batch_ids: [3], remove_batch_ids: [5] },
+      ],
+      [
+        "http://localhost:8000/api/stocktakes/7/items/9/count",
+        { counted_quantity: "8.00", status: "counted", remarks: "checked" },
+      ],
+      [
+        "http://localhost:8000/api/stocktakes/7/approve",
+        { remarks: "approved" },
+      ],
+    ]);
   });
 });

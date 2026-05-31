@@ -2,6 +2,7 @@ import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import {
   BarChart3,
   Boxes,
+  ClipboardCheck,
   KeyRound,
   LayoutDashboard,
   Package,
@@ -37,6 +38,7 @@ const InventoryStatusPage = lazy(() =>
 const LossReportPage = lazy(() => import("../components/pages/LossReportPage").then((module) => ({ default: module.LossReportPage })));
 const QrScanPage = lazy(() => import("../components/pages/QrScanPage").then((module) => ({ default: module.QrScanPage })));
 const AnalyticsPage = lazy(() => import("../components/pages/AnalyticsPage").then((module) => ({ default: module.AnalyticsPage })));
+const StocktakePage = lazy(() => import("../components/pages/StocktakePage").then((module) => ({ default: module.StocktakePage })));
 const SettingsProfilePage = lazy(() => import("../components/pages/SettingsPage").then((module) => ({ default: module.SettingsProfilePage })));
 const UserManagementPage = lazy(() => import("../components/pages/SettingsPage").then((module) => ({ default: module.UserManagementPage })));
 const RoleManagementPage = lazy(() => import("../components/pages/SettingsPage").then((module) => ({ default: module.RoleManagementPage })));
@@ -85,6 +87,14 @@ export const appRoutes: AppRoute[] = [
     menuGroup: "main",
     path: "/qr-scan",
     requiredPermissions: ["qr_scans_create"],
+  },
+  {
+    component: StocktakePage,
+    icon: ClipboardCheck,
+    label: "库存盘点",
+    menuGroup: "main",
+    path: "/stocktakes",
+    requiredPermissions: ["stocktakes_read"],
   },
   {
     component: AnalyticsPage,

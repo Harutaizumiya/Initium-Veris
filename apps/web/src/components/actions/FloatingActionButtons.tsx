@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { Bell, Plus } from "lucide-react";
 
 interface FloatingActionButtonsProps {
-  onOpenShelfLifeAlert: () => void;
+  onOpenShelfLifeAlert?: () => void;
 }
 
 export const FloatingActionButtons: React.FC<FloatingActionButtonsProps> = ({ onOpenShelfLifeAlert }) => {
@@ -16,19 +16,21 @@ export const FloatingActionButtons: React.FC<FloatingActionButtonsProps> = ({ on
       >
         <Plus size={24} className="group-hover:rotate-90 transition-transform" />
       </motion.button>
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={onOpenShelfLifeAlert}
-        className="w-14 h-14 bg-primary text-white shadow-xl rounded-full flex items-center justify-center group"
-        aria-label="效期预警"
-        title="效期预警"
-      >
-        <Bell
-          size={24}
-          className="group-hover:scale-110 transition-transform"
-        />
-      </motion.button>
+      {onOpenShelfLifeAlert ? (
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={onOpenShelfLifeAlert}
+          className="w-14 h-14 bg-primary text-white shadow-xl rounded-full flex items-center justify-center group"
+          aria-label="效期预警"
+          title="效期预警"
+        >
+          <Bell
+            size={24}
+            className="group-hover:scale-110 transition-transform"
+          />
+        </motion.button>
+      ) : null}
     </div>
   );
 };

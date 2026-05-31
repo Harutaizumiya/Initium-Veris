@@ -29,7 +29,8 @@ export interface BatchDto {
   product: ProductSummaryDto;
 }
 
-export type BatchOperationType = "add" | "deduct" | "loss";
+export type BatchOperationType = "add" | "deduct" | "loss" | "adjust";
+export type BatchOperationMutationType = Exclude<BatchOperationType, "adjust">;
 
 export interface BatchOperationDto {
   id: number;
@@ -67,7 +68,7 @@ export interface BatchMutationInput {
 }
 
 export interface BatchOperationMutationInput {
-  operation_type: BatchOperationType;
+  operation_type: BatchOperationMutationType;
   quantity: string;
   remarks?: string | null;
 }

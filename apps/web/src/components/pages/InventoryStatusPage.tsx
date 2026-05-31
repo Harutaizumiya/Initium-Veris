@@ -16,6 +16,7 @@ import {
   parseQuantity,
   queryKeys,
   toInventoryRecord,
+  type BatchDto,
 } from "../../api";
 import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
 import { cn } from "../../lib/utils";
@@ -887,7 +888,7 @@ export const InventoryStatusPage: React.FC = () => {
     }
 
     if (quantityValue > availableQuantity) {
-      setLossError(`报损数量不能超过当前批次的可用数量 ${formatQuantity(availableQuantity)}。`);
+      setLossError(`报损数量不能超过当前批次的可用数量 ${formatQuantity(String(availableQuantity))}。`);
       return;
     }
 

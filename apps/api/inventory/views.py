@@ -29,6 +29,14 @@ from inventory.schemas import (
     QrScanListQuerySerializer,
     QrScanRequestSerializer,
     QrScanResultSerializer,
+    StocktakeAuditLogSerializer,
+    StocktakeCreateSerializer,
+    StocktakeDecisionSerializer,
+    StocktakeItemCountSerializer,
+    StocktakeItemOutputSerializer,
+    StocktakeListQuerySerializer,
+    StocktakeScopeUpdateSerializer,
+    StocktakeTaskOutputSerializer,
 )
 from inventory.services import (
     AnalyticsService,
@@ -38,6 +46,7 @@ from inventory.services import (
     ProductService,
     QrCredentialService,
     QrScanService,
+    StocktakeService,
 )
 
 
@@ -392,3 +401,104 @@ class BatchStatusView(ServiceAPIView):
         serializer.is_valid(raise_exception=True)
         batch = BatchService.update_batch_status(batch_id, serializer.validated_data["status"], actor=request.user)
         return success_response(BatchOutputSerializer(batch).data)
+
+
+class StocktakeCollectionView(ServiceAPIView):
+    permission_map = {"GET": "stocktakes_read", "POST": "stocktakes_create"}
+
+    def get(self, request):
+        query = StocktakeListQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        tasks, total = StocktakeService.list_tasks(
+            task_type=query.validated_data.get("task_type"),
+            status=query.validated_data.get("status"),
+            page=query.validated_data["page"],
+            size=query.validated_data["size"],
+        )
+        serializer = StocktakeTaskOutputSerializer(tasks, many=True)
+        return success_response(
+            paginated_payload(
+                items=serializer.data,
+                page=query.validated_data["page"],
+                size=query.validated_data["size"],
+                total=total,
+            )
+        )
+
+    def post(self, request):
+        serializer = StocktakeCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        task = StocktakeService.create_task(serializer.validated_data, actor=request.user)
+        return success_response(StocktakeTaskOutputSerializer(task, context={"include_items": True}).data, status_code=201)
+
+
+class StocktakeDetailView(ServiceAPIView):
+    permission_map = {"GET": "stocktakes_read"}
+
+    def get(self, request, task_id: int):
+        task = StocktakeService.get_task(task_id)
+        return success_response(StocktakeTaskOutputSerializer(task, context={"include_items": True}).data)
+
+
+class StocktakeScopeView(ServiceAPIView):
+    permission_map = {"PATCH": "stocktakes_update_scope"}
+
+    def patch(self, request, task_id: int):
+        serializer = StocktakeScopeUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        task = StocktakeService.update_scope(task_id, serializer.validated_data, actor=request.user)
+        return success_response(StocktakeTaskOutputSerializer(task, context={"include_items": True}).data)
+
+
+class StocktakeStartView(ServiceAPIView):
+    permission_map = {"POST": "stocktakes_update_scope"}
+
+    def post(self, request, task_id: int):
+        task = StocktakeService.start_task(task_id, actor=request.user)
+        return success_response(StocktakeTaskOutputSerializer(task, context={"include_items": True}).data)
+
+
+class StocktakeItemCountView(ServiceAPIView):
+    permission_map = {"PATCH": "stocktakes_count"}
+
+    def patch(self, request, task_id: int, item_id: int):
+        serializer = StocktakeItemCountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        item = StocktakeService.count_item(task_id, item_id, serializer.validated_data, actor=request.user)
+        return success_response(StocktakeItemOutputSerializer(item).data)
+
+
+class StocktakeSubmitView(ServiceAPIView):
+    permission_map = {"POST": "stocktakes_submit"}
+
+    def post(self, request, task_id: int):
+        task = StocktakeService.submit_task(task_id, actor=request.user)
+        return success_response(StocktakeTaskOutputSerializer(task, context={"include_items": True}).data)
+
+
+class StocktakeApproveView(ServiceAPIView):
+    permission_map = {"POST": "stocktakes_approve"}
+
+    def post(self, request, task_id: int):
+        serializer = StocktakeDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        task = StocktakeService.approve_task(task_id, serializer.validated_data, actor=request.user)
+        return success_response(StocktakeTaskOutputSerializer(task, context={"include_items": True}).data)
+
+
+class StocktakeCancelView(ServiceAPIView):
+    permission_map = {"POST": "stocktakes_cancel"}
+
+    def post(self, request, task_id: int):
+        serializer = StocktakeDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        task = StocktakeService.cancel_task(task_id, serializer.validated_data, actor=request.user)
+        return success_response(StocktakeTaskOutputSerializer(task, context={"include_items": True}).data)
+
+
+class StocktakeAuditLogView(ServiceAPIView):
+    permission_map = {"GET": "stocktakes_read"}
+
+    def get(self, request, task_id: int):
+        logs = StocktakeService.list_audit_logs(task_id)
+        return success_response({"items": StocktakeAuditLogSerializer(logs, many=True).data, "pagination": None})

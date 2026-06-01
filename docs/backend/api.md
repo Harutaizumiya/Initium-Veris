@@ -247,7 +247,7 @@ Token 默认 8 小时过期，`remember_me=true` 时为 3 天。数据库只保�
 
 | Method | Path | Permission | 说明 |
 | --- | --- | --- | --- |
-| `GET` | `/batches` | `batches_read` | 批次列表，支持 `product_id,status,expired_only,page,size` |
+| `GET` | `/batches` | `batches_read` | 批次列表，支持 `product_id,status,expired_only,active_only,page,size` |
 | `POST` | `/batches` | `batches_create` | 创建批次主数据，初始 `quantity=0.00` |
 | `GET` | `/batches/expiry-alerts` | `batches_read` | 效期预警列表 |
 | `GET` | `/batches/{batch_id}` | `batches_read` | 批次详情 |
@@ -270,6 +270,15 @@ Token 默认 8 小时过期，`remember_me=true` 时为 3 天。数据库只保�
 ```
 
 `batch_code` 可省略，由服务端生成；`expire_date` 可省略，由 `manufacture_date + product.shelf_life_days` 推导。数量只能通过库存操作变更。
+
+批次列表查询参数：
+
+- `product_id`
+- `status`
+- `expired_only`，默认 `false`
+- `active_only`，默认 `false`；为 `true` 时仅返回 `quantity > 0` 且 `status != used_up` 的有效库存批次
+- `page`，默认 `1`
+- `size`，默认 `20`，最大 `100`
 
 效期预警查询参数：
 

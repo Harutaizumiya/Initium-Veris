@@ -61,7 +61,6 @@ const LIST_PAGE_SIZE = 6;
 const CARD_MIN_WIDTH = 280;
 const CARD_GRID_GAP = 16;
 const CARD_ROWS_PER_PAGE = 2;
-const BATCH_LIST_FETCH_SIZE = 100;
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 const QUERY_GC_TIME_MS = 30 * 60 * 1000;
 const PRODUCT_OPTION_LIST_HEIGHT = 180;
@@ -662,7 +661,7 @@ export const InventoryStatusPage: React.FC = () => {
     }),
     [deferredQuery],
   );
-  const batchListParams = useMemo(() => ({ active_only: true, page: 1, size: BATCH_LIST_FETCH_SIZE }), []);
+  const batchListParams = useMemo(() => ({ active_only: true, page: currentPage, size: pageSize }), [currentPage, pageSize]);
   const productsQuery = useQuery({
     queryKey: queryKeys.products.list(productListParams),
     queryFn: () => listProducts(productListParams),
@@ -727,9 +726,9 @@ export const InventoryStatusPage: React.FC = () => {
       });
   }, [deferredQuery, isCreateBatchOpen, products]);
 
-  const activeBatchTotal = sortedItems.length;
+  const activeBatchTotal = batchesQuery.data?.pagination?.total ?? sortedItems.length;
   const totalPages = Math.max(1, Math.ceil(activeBatchTotal / pageSize));
-  const pagedItems = sortedItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pagedItems = sortedItems;
 
   const reloadPageData = useCallback(async () => {
     await Promise.all([

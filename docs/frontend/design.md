@@ -46,7 +46,7 @@ Origin 当前是一套明亮、圆润、卡片化的食品库存工作台设计�
 - Tables：轻分割、浅表头、行 hover，避免重网格。
 - Badges：浅底色加文字/图标，不使用大面积纯色块。
 - Modals/Sheets：Web 使用居中弹窗，移动端使用底部 sheet；二者都保留遮罩和清晰关闭入口。
-- Operation Feedback：Web 复用 `OperationAlert`，移动端复用本地 toast/inline alert 语义，成功、警告、错误风格保持一致。
+- Operation Feedback：Web 统一通过 `NotificationProvider + useNotification()` 分发全局浮动通知，单条视觉复用 `OperationAlert`；移动端复用本地 toast/inline alert 语义，成功、警告、错误风格保持一致。
 - Charts：图表置于卡片或移动端 section 内，主序列使用品牌蓝，辅助序列使用低饱和状态色。
 
 ## Motion
@@ -61,6 +61,13 @@ Origin 当前是一套明亮、圆润、卡片化的食品库存工作台设计�
 - 新增 Web 组件优先复用 `bg-surface`、`bg-surface-container-lowest`、`text-on-surface`、`text-primary` 等 token。
 - 新增移动端组件应使用同名 token 值，避免另起一套颜色体系。
 - 调试模式可以展示接口状态码和错误详情；生产界面只展示用户可理解的业务文案。
+
+## Notification Rules
+- Web 全局浮动通知的唯一入口是 `apps/web/src/providers/NotificationProvider.tsx` 提供的 `useNotification()`。
+- 业务代码触发成功、失败、警告、信息类弹出通知时，必须调用 `notify.success()`、`notify.error()`、`notify.warning()`、`notify.info()` 或 `notify()`，不得在页面内自行维护 `toastOpen`、`feedback`、`timer`、`fixed top-*` 一类本地浮动通知实现。
+- `OperationAlert` 只负责单条提示的视觉表达，不作为业务页面直接拼装全局 toast 容器。
+- 页面内联提示、表单区块错误、静态说明类提示可以继续直接使用 `OperationAlert`，因为它们属于内容区反馈，不属于全局浮动通知。
+- 需要调试信息时，通过统一通知入口传入 `debugDetail`；生产态只展示业务可读文案。
 
 ## Do's and Don'ts
 - Do 保持明亮背景、白色卡片、清晰边界和舒适留白。

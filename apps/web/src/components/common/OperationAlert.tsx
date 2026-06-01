@@ -11,6 +11,7 @@ interface OperationAlertProps {
   showIcon?: boolean;
   closable?: boolean;
   className?: string;
+  onClose?: () => void;
 }
 
 const alertStyles: Record<
@@ -74,6 +75,7 @@ export const OperationAlert: React.FC<OperationAlertProps> = ({
   showIcon = true,
   closable = false,
   className,
+  onClose,
 }) => {
   const [visible, setVisible] = useState(true);
 
@@ -107,7 +109,10 @@ export const OperationAlert: React.FC<OperationAlertProps> = ({
       {closable ? (
         <button
           type="button"
-          onClick={() => setVisible(false)}
+          onClick={() => {
+            setVisible(false);
+            onClose?.();
+          }}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
           aria-label="关闭提示"
           title="关闭提示"

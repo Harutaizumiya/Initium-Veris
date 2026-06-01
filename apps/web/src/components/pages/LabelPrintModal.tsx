@@ -14,7 +14,8 @@ import {
   type LabelPrinterTransport,
 } from "../../lib/labelPrinter";
 import { cn } from "../../lib/utils";
-import { getErrorDebugDetail, OperationFeedbackToast, type OperationFeedbackState } from "../common/OperationFeedbackToast";
+import { useNotification } from "../../providers/NotificationProvider";
+import { getErrorDebugDetail } from "../common/OperationFeedbackToast";
 
 interface LabelPrintModalProps {
   open: boolean;
@@ -154,13 +155,12 @@ const LabelPreview: React.FC<{
 export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload, loading = false, error = null, onClose, onRetry }) => {
   const [options, setOptions] = useState<LabelPrinterOptions>(DEFAULT_LABEL_PRINTER_OPTIONS);
   const [printing, setPrinting] = useState(false);
-  const [feedback, setFeedback] = useState<OperationFeedbackState | null>(null);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [previewQrDataUrl, setPreviewQrDataUrl] = useState<string | null>(null);
   const [previewQrLoading, setPreviewQrLoading] = useState(false);
   const [previewQrError, setPreviewQrError] = useState<string | null>(null);
   const [previewPrintTime, setPreviewPrintTime] = useState(() => formatPrintTimestamp());
   const canPrint = Boolean(payload?.qrCode.trim()) && !loading && !error;
+  const notify = useNotification();
 
   const effectiveOptions = useMemo<LabelPrinterOptions>(() => {
     if (options.transport === "browser") {
@@ -176,7 +176,6 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
 
   const updateOption = useCallback(<Key extends keyof LabelPrinterOptions>(key: Key, value: LabelPrinterOptions[Key]) => {
     setOptions((currentOptions) => ({ ...currentOptions, [key]: value }));
-    setFeedback(null);
   }, []);
 
   useEffect(() => {
@@ -219,42 +218,34 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
 
   const handlePrint = useCallback(async () => {
     if (!payload?.qrCode.trim()) {
-      setFeedback({
-        type: "error",
+      notify.error({
         title: "打印失败",
         description: "二维码凭证未加载，不能发送打印命令。",
       });
-      setFeedbackOpen(true);
       return;
     }
 
     setPrinting(true);
-    setFeedback(null);
 
     try {
       const result = await sendLabelPrintCommand(payload, effectiveOptions);
-      setFeedback({
-        type: "success",
+      notify.success({
         title: "打印命令已发送",
         description: result.bytes ? `打印命令已发送，写入 ${result.bytes} bytes。` : "已打开系统打印流程。",
       });
-      setFeedbackOpen(true);
     } catch (error) {
-      setFeedback({
-        type: "error",
+      notify.error({
         title: "打印失败",
         description: "打印失败，请检查打印机连接。",
         debugDetail: getErrorDebugDetail(error),
       });
-      setFeedbackOpen(true);
     } finally {
       setPrinting(false);
     }
-  }, [effectiveOptions, payload]);
+  }, [effectiveOptions, notify, payload]);
 
   return (
     <>
-      <OperationFeedbackToast open={feedbackOpen} feedback={feedback} onClose={() => setFeedbackOpen(false)} />
       <AnimatePresence>
         {open ? (
         <>

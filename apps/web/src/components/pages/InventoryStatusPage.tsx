@@ -18,9 +18,9 @@ import {
   toInventoryRecord,
   type BatchDto,
 } from "../../api";
-import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../providers/AuthProvider";
+import { useNotification } from "../../providers/NotificationProvider";
 import { FloatingActionButtons } from "../actions/FloatingActionButtons";
 import { Pagination } from "../common/Pagination";
 import { StatCard } from "../dashboard/StatCard";
@@ -44,13 +44,6 @@ interface NewBatchFormState {
   quantity: string;
   manufactureDate: string;
   remarks: string;
-}
-
-interface BatchFeedbackState {
-  type: OperationAlertType;
-  title: string;
-  description: string;
-  detail?: string | null;
 }
 
 interface InventoryViewModel {
@@ -476,51 +469,6 @@ function NewBatchModal({
   );
 }
 
-function BatchFeedbackToast({
-  feedback,
-  open,
-  onClose,
-}: {
-  feedback: BatchFeedbackState | null;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const isDebugMode = import.meta.env.DEV;
-
-  return (
-    <AnimatePresence>
-      {open && feedback ? (
-        <div className="pointer-events-none fixed inset-x-0 top-6 z-50 flex justify-center px-4">
-          <motion.section
-            initial={{ opacity: 0, y: -24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -24 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="pointer-events-auto w-full max-w-2xl"
-          >
-            <OperationAlert
-              title={feedback.title}
-              description={feedback.description}
-              type={feedback.type}
-              showIcon
-              className="ambient-shadow"
-            />
-
-            {isDebugMode && feedback.detail ? (
-              <div className="ambient-shadow mt-3 rounded-3xl border border-surface-container/10 bg-surface-container-lowest px-5 py-4">
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">调试详情</div>
-                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all text-xs leading-6 text-on-surface-variant">
-                  {feedback.detail}
-                </pre>
-              </div>
-            ) : null}
-          </motion.section>
-        </div>
-      ) : null}
-    </AnimatePresence>
-  );
-}
-
 const InventoryCardView = memo(function InventoryCardView({
   items,
   columnCount,
@@ -657,6 +605,7 @@ const ViewToggle = memo(function ViewToggle({
 
 export const InventoryStatusPage: React.FC = () => {
   const { hasPermission } = useAuth();
+  const notify = useNotification();
   const queryClient = useQueryClient();
   const canAddInventory = hasPermission("batch_operations_add");
   const canPrintLabel = hasPermission("label_payload_issue");
@@ -679,8 +628,6 @@ export const InventoryStatusPage: React.FC = () => {
   const [selectedLossBatchId, setSelectedLossBatchId] = useState<number | null>(null);
   const [newBatchForm, setNewBatchForm] = useState<NewBatchFormState>(DEFAULT_NEW_BATCH_FORM);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [batchFeedback, setBatchFeedback] = useState<BatchFeedbackState | null>(null);
-  const [isBatchFeedbackOpen, setIsBatchFeedbackOpen] = useState(false);
   const [labelPrintPayload, setLabelPrintPayload] = useState<LabelPrintPayload | null>(null);
   const [isLabelPrintOpen, setIsLabelPrintOpen] = useState(false);
   const [isLabelPrintLoading, setIsLabelPrintLoading] = useState(false);
@@ -810,21 +757,17 @@ export const InventoryStatusPage: React.FC = () => {
 
   const openLossReportFromDetail = useCallback(() => {
     if (!canSubmitLoss) {
-      setBatchFeedback({
-        type: "error",
+      notify.error({
         title: "无法发起报损",
         description: "当前账号没有提交报损的权限。",
       });
-      setIsBatchFeedbackOpen(true);
       return;
     }
     if (!selectedItem || !selectedLossProduct) {
-      setBatchFeedback({
-        type: "error",
+      notify.error({
         title: "无法发起报损",
         description: "当前批次缺少货物信息，请刷新库存列表后重试。",
       });
-      setIsBatchFeedbackOpen(true);
       return;
     }
 
@@ -845,7 +788,7 @@ export const InventoryStatusPage: React.FC = () => {
     setLossForm(DEFAULT_LOSS_FORM);
     setLossError(null);
     setIsLossModalOpen(true);
-  }, [canSubmitLoss, selectedDetailBatches, selectedItem, selectedLossProduct]);
+  }, [canSubmitLoss, notify, selectedDetailBatches, selectedItem, selectedLossProduct]);
 
   const closeLossModal = useCallback(() => {
     if (isSubmitting) {
@@ -904,23 +847,19 @@ export const InventoryStatusPage: React.FC = () => {
       await reloadPageData();
       await queryClient.invalidateQueries({ queryKey: queryKeys.operations.all });
       await queryClient.invalidateQueries({ queryKey: queryKeys.batches.product(selectedLossCard.product.id) });
-      setBatchFeedback({
-        type: "success",
+      notify.success({
         title: "报损提交成功",
         description: `已为批次 ${selectedBatch.batch_code} 记录报损，库存列表会自动同步最新结果。`,
       });
-      setIsBatchFeedbackOpen(true);
       closeLossModal();
       closeDetail();
     } catch (error) {
       setLossError(getErrorMessage(error));
-      setBatchFeedback({
-        type: "error",
+      notify.error({
         title: "报损提交失败",
         description: getErrorMessage(error),
-        detail: getErrorDebugDetail(error),
+        debugDetail: getErrorDebugDetail(error),
       });
-      setIsBatchFeedbackOpen(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -930,6 +869,7 @@ export const InventoryStatusPage: React.FC = () => {
     closeLossModal,
     lossForm.quantity,
     lossForm.remarks,
+    notify,
     queryClient,
     reloadPageData,
     selectedLossBatchId,
@@ -1066,32 +1006,24 @@ export const InventoryStatusPage: React.FC = () => {
       });
       await reloadPageData();
       await queryClient.invalidateQueries({ queryKey: queryKeys.batches.product(selectedProduct.id) });
-      setBatchFeedback({
-        type: "success",
+      notify.success({
         title: "库存入库成功",
         description: `已为 ${selectedProduct.product_name} 记录本次入库，库存列表会自动同步最新结果。`,
       });
-      setIsBatchFeedbackOpen(true);
       setIsCreateBatchOpen(false);
       setSelectedProduct(null);
       setNewBatchForm(DEFAULT_NEW_BATCH_FORM);
     } catch (error) {
       setNewBatchError(getErrorMessage(error));
-      setBatchFeedback({
-        type: "error",
+      notify.error({
         title: "库存入库失败",
         description: getErrorMessage(error),
-        detail: getErrorDebugDetail(error),
+        debugDetail: getErrorDebugDetail(error),
       });
-      setIsBatchFeedbackOpen(true);
     } finally {
       setIsSubmitting(false);
     }
-  }, [canAddInventory, newBatchForm.manufactureDate, newBatchForm.quantity, newBatchForm.remarks, queryClient, reloadPageData, selectedProduct]);
-
-  const closeBatchFeedback = useCallback(() => {
-    setIsBatchFeedbackOpen(false);
-  }, []);
+  }, [canAddInventory, newBatchForm.manufactureDate, newBatchForm.quantity, newBatchForm.remarks, notify, queryClient, reloadPageData, selectedProduct]);
 
   useEffect(() => {
     if (!isDetailOpen) {
@@ -1102,18 +1034,6 @@ export const InventoryStatusPage: React.FC = () => {
       return () => window.clearTimeout(timer);
     }
   }, [isDetailOpen]);
-
-  useEffect(() => {
-    if (!isBatchFeedbackOpen) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setIsBatchFeedbackOpen(false);
-    }, 3000);
-
-    return () => window.clearTimeout(timer);
-  }, [isBatchFeedbackOpen]);
 
   useEffect(() => {
     if (view !== "card" || isLoading) {
@@ -1272,12 +1192,6 @@ export const InventoryStatusPage: React.FC = () => {
         onSelectProduct={handleSelectProduct}
         onClose={closeCreateBatchModal}
         onSubmit={handleCreateBatch}
-      />
-
-      <BatchFeedbackToast
-        open={isBatchFeedbackOpen}
-        feedback={batchFeedback}
-        onClose={closeBatchFeedback}
       />
 
       <FloatingActionButtons />

@@ -5,8 +5,9 @@ import { CheckCircle2, ClipboardPaste, Keyboard, LoaderCircle, QrCode, RotateCcw
 import { ApiClientError, createQrScan, listQrScans, queryKeys, type QrScanAuditItemDto, type QrScanResultDto } from "../../api";
 import { cn } from "../../lib/utils";
 import { createClientScanId, getQrScanStatusMeta } from "../../lib/qrScan";
+import { useNotification } from "../../providers/NotificationProvider";
 import { Pagination } from "../common/Pagination";
-import { getErrorDebugDetail, OperationFeedbackToast, type OperationFeedbackState } from "../common/OperationFeedbackToast";
+import { getErrorDebugDetail } from "../common/OperationFeedbackToast";
 
 type ScanWindowDays = 1 | 7;
 
@@ -61,12 +62,11 @@ export const QrScanPage: React.FC = () => {
   const [result, setResult] = useState<QrScanResultDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scanWindowDays, setScanWindowDays] = useState<ScanWindowDays>(DEFAULT_SCAN_WINDOW_DAYS);
-  const [feedback, setFeedback] = useState<OperationFeedbackState | null>(null);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const queryClient = useQueryClient();
   const isDebugMode = import.meta.env.DEV;
+  const notify = useNotification();
 
   const scanHistoryQuery = useQuery({
     queryKey: queryKeys.qrScans.list({ days: scanWindowDays }),
@@ -125,32 +125,27 @@ export const QrScanPage: React.FC = () => {
       const statusMeta = getQrScanStatusMeta(scanResult.status);
       setResult(scanResult);
       await queryClient.invalidateQueries({ queryKey: queryKeys.qrScans.all });
-      setFeedback({
+      notify.notify({
         type: statusMeta.alertType,
         title: "扫码审计已提交",
         description: scanResult.message,
       });
-      setFeedbackOpen(true);
       setQrInput("");
       window.setTimeout(() => inputRef.current?.focus(), 0);
     } catch (requestError) {
       setError(getErrorMessage(requestError));
-      setFeedback({
-        type: "error",
+      notify.error({
         title: "扫码审计失败",
         description: getErrorMessage(requestError),
         debugDetail: getErrorDebugDetail(requestError),
       });
-      setFeedbackOpen(true);
     } finally {
       setSubmitting(false);
     }
-  }, [qrInput, queryClient]);
+  }, [notify, qrInput, queryClient]);
 
   return (
-    <>
-      <OperationFeedbackToast open={feedbackOpen} feedback={feedback} onClose={() => setFeedbackOpen(false)} />
-      <div>
+    <div>
         <div className="mb-8">
           <div>
             <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">扫码审计</h2>
@@ -320,7 +315,6 @@ export const QrScanPage: React.FC = () => {
           </section>
         </div>
       </div>
-    </>
   );
 };
 

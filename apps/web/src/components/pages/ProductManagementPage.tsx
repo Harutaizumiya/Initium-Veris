@@ -14,7 +14,7 @@ import {
 import { ApiClientError, createProduct, deleteProduct, listProductCategories, listProducts, queryKeys, updateProduct } from "../../api";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../providers/AuthProvider";
-import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
+import { useNotification } from "../../providers/NotificationProvider";
 import { Pagination } from "../common/Pagination";
 import type { Product, ProductFilters, ProductFormInput } from "./ProductManagement.types";
 
@@ -29,13 +29,6 @@ const EMPTY_FORM: ProductFormInput = {
   unit: "",
   manufacturer: "",
 };
-
-interface ProductFeedbackState {
-  type: OperationAlertType;
-  title: string;
-  description: string;
-  detail?: string | null;
-}
 
 function formatDate(date: string) {
   return new Date(date).toLocaleString("zh-CN", {
@@ -92,61 +85,6 @@ function getErrorDebugDetail(error: unknown) {
   }
 
   return JSON.stringify(error);
-}
-
-function ProductFeedbackToast({
-  feedback,
-  open,
-  onClose,
-}: {
-  feedback: ProductFeedbackState | null;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const isDebugMode = import.meta.env.DEV;
-
-  return (
-    <AnimatePresence>
-      {open && feedback ? (
-        <div className="pointer-events-none fixed inset-x-0 top-6 z-50 flex justify-center px-4">
-          <motion.section
-            initial={{ opacity: 0, y: -24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -24 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="pointer-events-auto w-full max-w-2xl"
-          >
-            <OperationAlert
-              title={feedback.title}
-              description={feedback.description}
-              type={feedback.type}
-              showIcon
-              className="ambient-shadow"
-            />
-
-            {isDebugMode && feedback.detail ? (
-              <div className="ambient-shadow mt-3 rounded-3xl border border-surface-container/10 bg-surface-container-lowest px-5 py-4">
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant">调试详情</div>
-                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all text-xs leading-6 text-on-surface-variant">
-                  {feedback.detail}
-                </pre>
-              </div>
-            ) : null}
-
-            <div className="mt-3 flex justify-end">
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex items-center gap-2 rounded-2xl border border-surface-container px-4 py-2 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container-low"
-              >
-                关闭
-              </button>
-            </div>
-          </motion.section>
-        </div>
-      ) : null}
-    </AnimatePresence>
-  );
 }
 
 function ProductFormModal({
@@ -415,8 +353,7 @@ export const ProductManagementPage: React.FC = () => {
   const [form, setForm] = useState<ProductFormInput>(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [feedback, setFeedback] = useState<ProductFeedbackState | null>(null);
-  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const notify = useNotification();
   const deferredQuery = useDeferredValue(filters.query);
   const productListParams = useMemo(
     () => ({
@@ -478,18 +415,6 @@ export const ProductManagementPage: React.FC = () => {
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
   }, [totalPages]);
-
-  useEffect(() => {
-    if (!isFeedbackOpen) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setIsFeedbackOpen(false);
-    }, 3000);
-
-    return () => window.clearTimeout(timer);
-  }, [isFeedbackOpen]);
 
   const openCreateModal = useCallback(() => {
     if (!canCreateProduct) {
@@ -617,14 +542,12 @@ export const ProductManagementPage: React.FC = () => {
       }
 
       await reloadAfterMutation();
-      setFeedback({
-        type: "success",
+      notify.success({
         title: editingProduct ? "货物更新成功" : "货物创建成功",
         description: editingProduct
           ? `已更新 ${payload.product_name} 的货物信息。`
           : `已创建货物 ${payload.product_name}。`,
       });
-      setIsFeedbackOpen(true);
       resetFormModal();
     } catch (error) {
       if (error instanceof ApiClientError && error.message === "conflict") {
@@ -632,17 +555,15 @@ export const ProductManagementPage: React.FC = () => {
       } else {
         setSubmitError(getErrorMessage(error));
       }
-      setFeedback({
-        type: "error",
+      notify.error({
         title: editingProduct ? "货物更新失败" : "货物创建失败",
         description: getErrorMessage(error),
-        detail: getErrorDebugDetail(error),
+        debugDetail: getErrorDebugDetail(error),
       });
-      setIsFeedbackOpen(true);
     } finally {
       setIsSubmitting(false);
     }
-  }, [canCreateProduct, canUpdateProduct, editingProduct, form, products, reloadAfterMutation, resetFormModal]);
+  }, [canCreateProduct, canUpdateProduct, editingProduct, form, notify, products, reloadAfterMutation, resetFormModal]);
 
   const handleDelete = useCallback(async () => {
     if (!productToDelete) {
@@ -659,29 +580,25 @@ export const ProductManagementPage: React.FC = () => {
     try {
       await deleteProduct(productToDelete.id);
       await reloadAfterMutation();
-      setFeedback({
-        type: "success",
+      notify.success({
         title: "货物删除成功",
         description: `已删除货物 ${productToDelete.product_name}。`,
       });
-      setIsFeedbackOpen(true);
       if (editingProduct?.id === productToDelete.id) {
         closeFormModal();
       }
       setProductToDelete(null);
     } catch (error) {
       setMutationError(getErrorMessage(error));
-      setFeedback({
-        type: "error",
+      notify.error({
         title: "货物删除失败",
         description: getErrorMessage(error),
-        detail: getErrorDebugDetail(error),
+        debugDetail: getErrorDebugDetail(error),
       });
-      setIsFeedbackOpen(true);
     } finally {
       setIsDeleting(false);
     }
-  }, [canDeleteProduct, closeFormModal, editingProduct?.id, productToDelete, reloadAfterMutation]);
+  }, [canDeleteProduct, closeFormModal, editingProduct?.id, notify, productToDelete, reloadAfterMutation]);
 
   const openDeleteConfirm = useCallback((product: Product) => {
     setProductToDelete(product);
@@ -913,12 +830,6 @@ export const ProductManagementPage: React.FC = () => {
         deleting={isDeleting}
         onCancel={closeDeleteConfirm}
         onConfirm={handleDelete}
-      />
-
-      <ProductFeedbackToast
-        open={isFeedbackOpen}
-        feedback={feedback}
-        onClose={() => setIsFeedbackOpen(false)}
       />
     </>
   );

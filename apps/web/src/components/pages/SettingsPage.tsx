@@ -20,7 +20,8 @@ import {
 } from "../../api";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../providers/AuthProvider";
-import { getErrorDebugDetail, OperationFeedbackToast, type OperationFeedbackState } from "../common/OperationFeedbackToast";
+import { useNotification } from "../../providers/NotificationProvider";
+import { getErrorDebugDetail } from "../common/OperationFeedbackToast";
 
 interface RoleFormState {
   id: number | null;
@@ -310,8 +311,7 @@ export const RoleManagementPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [toastFeedback, setToastFeedback] = useState<OperationFeedbackState | null>(null);
-  const [toastOpen, setToastOpen] = useState(false);
+  const notify = useNotification();
   const groups = permissionsQuery.data ?? [];
   const roles = rolesQuery.data ?? [];
   const loading = permissionsQuery.isLoading || rolesQuery.isLoading;
@@ -360,20 +360,16 @@ export const RoleManagementPage: React.FC = () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.authManagement.users() });
       setIsRoleModalOpen(false);
       setForm(EMPTY_ROLE_FORM);
-      setToastFeedback({
-        type: "success",
+      notify.success({
         title: "角色已保存",
         description: form.id ? "角色更新已同步到权限配置。" : "新角色已创建并写入权限配置。",
       });
-      setToastOpen(true);
     } catch (error) {
-      setToastFeedback({
-        type: "error",
+      notify.error({
         title: "保存角色失败",
         description: getErrorMessage(error),
         debugDetail: getErrorDebugDetail(error),
       });
-      setToastOpen(true);
     } finally {
       setSubmitting(false);
     }
@@ -389,29 +385,24 @@ export const RoleManagementPage: React.FC = () => {
       if (form.id === role.id) {
         resetForm();
       }
-      setToastFeedback({
-        type: "success",
+      notify.success({
         title: "角色已删除",
         description: `${role.name} 已从角色目录移除。`,
       });
-      setToastOpen(true);
     } catch (error) {
       const description = error instanceof ApiClientError && error.status === 409 ? "该角色已分配给用户，无法删除。" : getErrorMessage(error);
-      setToastFeedback({
-        type: "error",
+      notify.error({
         title: "删除角色失败",
         description,
         debugDetail: getErrorDebugDetail(error),
       });
-      setToastOpen(true);
     } finally {
       setDeletingId(null);
     }
   };
 
   return (
-    <div>
-      <OperationFeedbackToast open={toastOpen} feedback={toastFeedback} onClose={() => setToastOpen(false)} />
+      <div>
       <PageTitleWithAction
         title="角色管理"
         description="创建 Django Group 角色，并为角色整体配置业务权限。"
@@ -764,8 +755,7 @@ export const UserManagementPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [toastFeedback, setToastFeedback] = useState<OperationFeedbackState | null>(null);
-  const [toastOpen, setToastOpen] = useState(false);
+  const notify = useNotification();
   const groups = permissionsQuery.data ?? [];
   const roles = rolesQuery.data ?? [];
   const users = usersQuery.data ?? [];
@@ -852,20 +842,16 @@ export const UserManagementPage: React.FC = () => {
       setIsUserModalOpen(false);
       setForm(EMPTY_USER_FORM);
       setPasswordResetValue("");
-      setToastFeedback({
-        type: "success",
+      notify.success({
         title: "用户已保存",
         description: form.id ? "用户资料与权限已更新。" : "新用户已创建。",
       });
-      setToastOpen(true);
     } catch (error) {
-      setToastFeedback({
-        type: "error",
+      notify.error({
         title: "保存用户失败",
         description: getErrorMessage(error),
         debugDetail: getErrorDebugDetail(error),
       });
-      setToastOpen(true);
     } finally {
       setSubmitting(false);
     }
@@ -882,28 +868,23 @@ export const UserManagementPage: React.FC = () => {
     try {
       await resetUserPassword(form.id, passwordResetValue);
       setPasswordResetValue("");
-      setToastFeedback({
-        type: "success",
+      notify.success({
         title: "密码已重置",
         description: "用户密码已更新，请通知对方使用新密码登录。",
       });
-      setToastOpen(true);
     } catch (error) {
-      setToastFeedback({
-        type: "error",
+      notify.error({
         title: "重置密码失败",
         description: getErrorMessage(error),
         debugDetail: getErrorDebugDetail(error),
       });
-      setToastOpen(true);
     } finally {
       setResettingPassword(false);
     }
   };
 
   return (
-    <div>
-      <OperationFeedbackToast open={toastOpen} feedback={toastFeedback} onClose={() => setToastOpen(false)} />
+      <div>
       <PageTitleWithAction
         title="用户管理"
         description="创建用户、分配角色和直接权限；超级管理员身份不能通过该接口授予。"

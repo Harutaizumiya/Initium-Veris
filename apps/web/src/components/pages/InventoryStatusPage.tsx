@@ -471,20 +471,18 @@ function NewBatchModal({
 
 const InventoryCardView = memo(function InventoryCardView({
   items,
-  columnCount,
   gridRef,
   onOpenDetail,
 }: {
   items: InventoryViewModel[];
-  columnCount: number;
   gridRef?: React.Ref<HTMLDivElement>;
   onOpenDetail: (item: InventoryRecord) => void;
 }) {
   return (
     <div
       ref={gridRef}
-      className="grid justify-items-start gap-4"
-      style={{ gridTemplateColumns: `repeat(${Math.max(columnCount, 1)}, minmax(0, 1fr))` }}
+      className="grid gap-4"
+      style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${CARD_MIN_WIDTH}px, 1fr))` }}
     >
       {items.map((viewModel) => {
         return (
@@ -1117,7 +1115,7 @@ export const InventoryStatusPage: React.FC = () => {
               </div>
             </div>
           ) : view === "card" ? (
-            <InventoryCardView items={pagedItems} columnCount={cardColumnCount} gridRef={cardGridRef} onOpenDetail={openDetail} />
+            <InventoryCardView items={pagedItems} gridRef={cardGridRef} onOpenDetail={openDetail} />
           ) : (
             <InventoryListView items={pagedItems} onOpenDetail={openDetail} />
           )}

@@ -38,7 +38,8 @@ import {
 } from "../../api";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../providers/AuthProvider";
-import { OperationAlert, type OperationAlertType } from "../common/OperationAlert";
+import { useNotification, type NotificationInput } from "../../providers/NotificationProvider";
+import { OperationAlert } from "../common/OperationAlert";
 
 const PAGE_SIZE = 20;
 const OPTION_PAGE_SIZE = 100;
@@ -64,12 +65,6 @@ const statusClassNames: Record<StocktakeTaskStatus, string> = {
   approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
   cancelled: "border-red-200 bg-red-50 text-red-600",
 };
-
-interface FeedbackState {
-  type: OperationAlertType;
-  title: string;
-  description: string;
-}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiClientError) {
@@ -105,6 +100,18 @@ function localDateInputValue(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function isDateInRange(value: string | null, dateFrom: string, dateTo: string) {
+  if (!dateFrom && !dateTo) {
+    return true;
+  }
+  if (!value) {
+    return false;
+  }
+
+  const localDate = localDateInputValue(new Date(value));
+  return (!dateFrom || localDate >= dateFrom) && (!dateTo || localDate <= dateTo);
 }
 
 function formatQuantity(value: string | number | null) {
@@ -601,6 +608,7 @@ function ItemTable({
 export function StocktakePage() {
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
+  const notify = useNotification();
   const today = useMemo(() => localDateInputValue(), []);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [filters, setFilters] = useState<{
@@ -615,9 +623,7 @@ export function StocktakePage() {
     date_to: today,
   });
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [operationError, setOperationError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [query, setQuery] = useState("");
   const [reviewFilter, setReviewFilter] = useState<"all" | "gain" | "loss" | "pending">("all");
@@ -664,7 +670,11 @@ export function StocktakePage() {
     staleTime: 60 * 1000,
   });
 
-  const tasks = tasksQuery.data?.items ?? [];
+  const rawTasks = tasksQuery.data?.items ?? [];
+  const tasks = useMemo(
+    () => rawTasks.filter((task) => isDateInRange(task.created_at, filters.date_from, filters.date_to)),
+    [filters.date_from, filters.date_to, rawTasks],
+  );
   const selectedTask = detailQuery.data ?? null;
   const products = productsQuery.data?.items ?? [];
   const batches = batchesQuery.data?.items ?? [];
@@ -692,16 +702,14 @@ export function StocktakePage() {
     }
   };
 
-  const runOperation = async (action: () => Promise<StocktakeTaskDto | StocktakeItemDto>, success: FeedbackState) => {
+  const runOperation = async (action: () => Promise<StocktakeTaskDto | StocktakeItemDto>, success: NotificationInput) => {
     setSubmitting(true);
-    setOperationError(null);
     try {
       const result = await action();
       await reloadStocktakes("task_type" in result ? result.id : selectedTaskId);
-      setFeedback(success);
+      notify.notify(success);
     } catch (error) {
-      setOperationError(getErrorMessage(error));
-      setFeedback({ type: "error", title: "操作失败", description: getErrorMessage(error) });
+      notify.error({ title: "操作未完成", description: getErrorMessage(error) });
     } finally {
       setSubmitting(false);
     }
@@ -715,9 +723,10 @@ export function StocktakePage() {
       setSelectedTaskId(task.id);
       setIsCreateOpen(false);
       await reloadStocktakes(task.id);
-      setFeedback({ type: "success", title: "盘点任务已创建", description: `已生成 ${task.stats.total_items} 个默认盘点项。` });
+      notify.success({ title: "盘点任务已创建", description: `已生成 ${task.stats.total_items} 个默认盘点项。` });
     } catch (error) {
       setCreateError(getErrorMessage(error));
+      notify.error({ title: "盘点任务创建失败", description: getErrorMessage(error) });
     } finally {
       setSubmitting(false);
     }
@@ -748,7 +757,7 @@ export function StocktakePage() {
       return !countedQuantity || Number.parseFloat(countedQuantity) < 0;
     });
     if (invalidItem) {
-      setOperationError("请输入有效的实盘数量。");
+      notify.error({ title: "操作未完成", description: "请输入有效的实盘数量。" });
       return;
     }
 
@@ -786,8 +795,6 @@ export function StocktakePage() {
       </div>
 
       {pageError ? <div className="mb-6"><OperationAlert type="error" title="盘点数据加载失败" description={pageError} showIcon /></div> : null}
-      {operationError ? <div className="mb-6"><OperationAlert type="error" title="操作未完成" description={operationError} showIcon /></div> : null}
-      {feedback ? <div className="mb-6"><OperationAlert type={feedback.type} title={feedback.title} description={feedback.description} showIcon closable /></div> : null}
 
       <section className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-5 ambient-shadow">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

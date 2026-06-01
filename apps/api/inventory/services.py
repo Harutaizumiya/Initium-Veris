@@ -136,6 +136,10 @@ def _json_value(value):
         return value.isoformat()
     if isinstance(value, date):
         return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_value(item) for item in value]
     return value
 
 
@@ -1552,7 +1556,7 @@ class StocktakeService:
             task=task,
             action=action,
             actor=actor,
-            snapshot={**(snapshot or {}), "actor": _actor_snapshot(actor)},
+            snapshot=_json_value({**(snapshot or {}), "actor": _actor_snapshot(actor)}),
         )
 
     @classmethod

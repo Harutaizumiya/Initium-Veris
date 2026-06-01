@@ -61,7 +61,7 @@ export const InventoryStatusCard = memo(function InventoryStatusCard({
       onClick={openDetail}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group relative flex min-h-[312px] min-w-0 w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white px-4 pb-4 pt-4 transition-all hover:-translate-y-1 cursor-pointer sm:min-h-[332px] sm:px-5 sm:pb-5 sm:pt-5",
+        "group relative flex h-full min-h-[312px] min-w-0 w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white px-4 pb-4 pt-4 transition-all hover:-translate-y-1 cursor-pointer sm:min-h-[332px] sm:px-5 sm:pb-5 sm:pt-5",
       )}
     >
       {isCritical && (

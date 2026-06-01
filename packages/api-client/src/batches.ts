@@ -48,6 +48,7 @@ export interface BatchListParams {
   product_id?: number;
   status?: string;
   expired_only?: boolean;
+  active_only?: boolean;
   page?: number;
   size?: number;
 }

@@ -194,6 +194,7 @@ class ProductBatchCollectionView(ServiceAPIView):
             product_id=product_id,
             status=query.validated_data.get("status"),
             expired_only=query.validated_data["expired_only"],
+            active_only=query.validated_data["active_only"],
             page=query.validated_data["page"],
             size=query.validated_data["size"],
         )
@@ -218,6 +219,7 @@ class BatchCollectionView(ServiceAPIView):
             product_id=query.validated_data.get("product_id"),
             status=query.validated_data.get("status"),
             expired_only=query.validated_data["expired_only"],
+            active_only=query.validated_data["active_only"],
             page=query.validated_data["page"],
             size=query.validated_data["size"],
         )

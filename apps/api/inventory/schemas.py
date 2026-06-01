@@ -45,6 +45,7 @@ class ProductUpdateSerializer(serializers.Serializer):
 class ProductBatchListQuerySerializer(serializers.Serializer):
     status = serializers.CharField(required=False, allow_blank=False)
     expired_only = serializers.BooleanField(required=False, default=False)
+    active_only = serializers.BooleanField(required=False, default=False)
     page = serializers.IntegerField(required=False, default=1, min_value=1)
     size = serializers.IntegerField(required=False, default=20, min_value=1, max_value=100)
 
@@ -70,6 +71,7 @@ class BatchListQuerySerializer(serializers.Serializer):
     product_id = serializers.IntegerField(required=False, min_value=1)
     status = serializers.CharField(required=False, allow_blank=False)
     expired_only = serializers.BooleanField(required=False, default=False)
+    active_only = serializers.BooleanField(required=False, default=False)
     page = serializers.IntegerField(required=False, default=1, min_value=1)
     size = serializers.IntegerField(required=False, default=20, min_value=1, max_value=100)
 

@@ -61,6 +61,7 @@ const LIST_PAGE_SIZE = 6;
 const CARD_MIN_WIDTH = 280;
 const CARD_GRID_GAP = 16;
 const CARD_ROWS_PER_PAGE = 2;
+const BATCH_LIST_FETCH_SIZE = 100;
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 const QUERY_GC_TIME_MS = 30 * 60 * 1000;
 const PRODUCT_OPTION_LIST_HEIGHT = 180;
@@ -183,6 +184,15 @@ function getCardColumnCount(containerWidth: number) {
 
 function getCardPageSize(columnCount: number) {
   return Math.max(1, columnCount) * CARD_ROWS_PER_PAGE;
+}
+
+function getCardPlaceholderCount(itemCount: number, columnCount: number) {
+  if (itemCount <= columnCount || columnCount <= 1) {
+    return 0;
+  }
+
+  const remainder = itemCount % columnCount;
+  return remainder === 0 ? 0 : columnCount - remainder;
 }
 
 function getErrorMessage(error: unknown) {
@@ -471,17 +481,21 @@ function NewBatchModal({
 
 const InventoryCardView = memo(function InventoryCardView({
   items,
+  columnCount,
   gridRef,
   onOpenDetail,
 }: {
   items: InventoryViewModel[];
+  columnCount: number;
   gridRef?: React.Ref<HTMLDivElement>;
   onOpenDetail: (item: InventoryRecord) => void;
 }) {
+  const placeholderCount = getCardPlaceholderCount(items.length, columnCount);
+
   return (
     <div
       ref={gridRef}
-      className="grid gap-4"
+      className="grid auto-rows-fr gap-4"
       style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${CARD_MIN_WIDTH}px, 1fr))` }}
     >
       {items.map((viewModel) => {
@@ -499,6 +513,13 @@ const InventoryCardView = memo(function InventoryCardView({
           />
         );
       })}
+      {Array.from({ length: placeholderCount }, (_, index) => (
+        <div
+          key={`inventory-card-placeholder-${index}`}
+          aria-hidden="true"
+          className="pointer-events-none min-h-[312px] rounded-3xl border border-dashed border-slate-200/80 bg-slate-50/60 sm:min-h-[332px]"
+        />
+      ))}
     </div>
   );
 });
@@ -641,7 +662,7 @@ export const InventoryStatusPage: React.FC = () => {
     }),
     [deferredQuery],
   );
-  const batchListParams = useMemo(() => ({ page: currentPage, size: pageSize }), [currentPage, pageSize]);
+  const batchListParams = useMemo(() => ({ active_only: true, page: 1, size: BATCH_LIST_FETCH_SIZE }), []);
   const productsQuery = useQuery({
     queryKey: queryKeys.products.list(productListParams),
     queryFn: () => listProducts(productListParams),
@@ -706,9 +727,9 @@ export const InventoryStatusPage: React.FC = () => {
       });
   }, [deferredQuery, isCreateBatchOpen, products]);
 
-  const serverBatchTotal = batchesQuery.data?.pagination?.total ?? sortedItems.length;
-  const totalPages = Math.max(1, Math.ceil(serverBatchTotal / pageSize));
-  const pagedItems = sortedItems;
+  const activeBatchTotal = sortedItems.length;
+  const totalPages = Math.max(1, Math.ceil(activeBatchTotal / pageSize));
+  const pagedItems = sortedItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const reloadPageData = useCallback(async () => {
     await Promise.all([
@@ -1093,7 +1114,7 @@ export const InventoryStatusPage: React.FC = () => {
           <div>
             <h3 className="font-headline text-xl font-bold text-on-surface">批次详情</h3>
             <p className="mt-1 text-sm text-on-surface-variant">
-              {isLoading ? "正在从后端加载批次..." : `当前共 ${serverBatchTotal} 个批次条目，当前页临期与过期批次优先展示。`}
+              {isLoading ? "正在从后端加载批次..." : `当前共 ${activeBatchTotal} 个有效库存批次，当前页临期与过期批次优先展示。`}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -1115,7 +1136,7 @@ export const InventoryStatusPage: React.FC = () => {
               </div>
             </div>
           ) : view === "card" ? (
-            <InventoryCardView items={pagedItems} gridRef={cardGridRef} onOpenDetail={openDetail} />
+            <InventoryCardView items={pagedItems} columnCount={cardColumnCount} gridRef={cardGridRef} onOpenDetail={openDetail} />
           ) : (
             <InventoryListView items={pagedItems} onOpenDetail={openDetail} />
           )}

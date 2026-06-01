@@ -356,7 +356,14 @@ class InventoryApiTests(SimpleTestCase):
                 },
             },
         )
-        mock_list_batches.assert_called_once_with(product_id=1, status=None, expired_only=False, page=1, size=20)
+        mock_list_batches.assert_called_once_with(
+            product_id=1,
+            status=None,
+            expired_only=False,
+            active_only=False,
+            page=1,
+            size=20,
+        )
 
     @patch("inventory.expiry.timezone.localtime")
     @patch("inventory.views.BatchService.get_batch")

@@ -796,7 +796,15 @@ class BatchService:
             )
 
     @staticmethod
-    def list_batches(*, product_id: int | None, status: str | None, expired_only: bool, page: int, size: int):
+    def list_batches(
+        *,
+        product_id: int | None,
+        status: str | None,
+        expired_only: bool,
+        active_only: bool,
+        page: int,
+        size: int,
+    ):
         try:
             queryset = Batch.objects.select_related("product").all().order_by("-received_at", "-id")
             if product_id:
@@ -805,6 +813,8 @@ class BatchService:
                 queryset = queryset.filter(status=status)
             if expired_only:
                 queryset = queryset.filter(expire_date__lt=timezone.now())
+            if active_only:
+                queryset = queryset.filter(quantity__gt=Decimal("0")).exclude(status="used_up")
 
             total = queryset.count()
             offset = (page - 1) * size

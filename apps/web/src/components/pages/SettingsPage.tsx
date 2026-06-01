@@ -7,6 +7,7 @@ import {
   createRole,
   createUser,
   deleteRole,
+  formatErrorMessage,
   listPermissions,
   listRoles,
   listUsers,
@@ -61,21 +62,16 @@ const EMPTY_USER_FORM: UserFormState = {
   permissionCodes: [],
 };
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiClientError) {
-    if (error.status === 403) {
-      return "当前账号没有管理用户权限。";
-    }
-    if (error.status === 409) {
-      return "数据冲突，请检查名称或关联关系。";
-    }
-    if (error.status === 400) {
-      return "提交内容不完整或格式不正确。";
-    }
-  }
-
-  return "操作失败，请稍后重试。";
-}
+const SETTINGS_ERROR_MESSAGE_OPTIONS = {
+  fallback: "操作失败，请稍后重试。",
+  apiClientStatusMessages: {
+    403: "当前账号没有管理用户权限。",
+    409: "数据冲突，请检查名称或关联关系。",
+    400: "提交内容不完整或格式不正确。",
+  },
+  apiClientFallback: () => "操作失败，请稍后重试。",
+  includeNativeErrorMessage: false,
+};
 
 function getAdminUserName(user: AuthAdminUser) {
   const fullName = [user.last_name, user.first_name].filter(Boolean).join("");
@@ -270,7 +266,7 @@ export const PermissionDirectoryPage: React.FC = () => {
     <div>
       <PageTitle title="权限目录" description="后端业务权限按 component 分组返回，前端只读展示并用于角色与用户授权。" />
       {permissionsQuery.isLoading ? <LoadingBlock label="正在加载权限目录" /> : null}
-      {permissionsQuery.error ? <ErrorBlock message={getErrorMessage(permissionsQuery.error)} /> : null}
+      {permissionsQuery.error ? <ErrorBlock message={formatErrorMessage(permissionsQuery.error, SETTINGS_ERROR_MESSAGE_OPTIONS)} /> : null}
       {!permissionsQuery.isLoading && !permissionsQuery.error ? (
         <div className="grid gap-5 xl:grid-cols-2">
           {groups.map((group) => (
@@ -367,7 +363,7 @@ export const RoleManagementPage: React.FC = () => {
     } catch (error) {
       notify.error({
         title: "保存角色失败",
-        description: getErrorMessage(error),
+        description: formatErrorMessage(error, SETTINGS_ERROR_MESSAGE_OPTIONS),
         debugDetail: getErrorDebugDetail(error),
       });
     } finally {
@@ -390,7 +386,10 @@ export const RoleManagementPage: React.FC = () => {
         description: `${role.name} 已从角色目录移除。`,
       });
     } catch (error) {
-      const description = error instanceof ApiClientError && error.status === 409 ? "该角色已分配给用户，无法删除。" : getErrorMessage(error);
+      const description =
+        error instanceof ApiClientError && error.status === 409
+          ? "该角色已分配给用户，无法删除。"
+          : formatErrorMessage(error, SETTINGS_ERROR_MESSAGE_OPTIONS);
       notify.error({
         title: "删除角色失败",
         description,
@@ -418,7 +417,7 @@ export const RoleManagementPage: React.FC = () => {
         }
       />
       {loading ? <LoadingBlock label="正在加载角色与权限" /> : null}
-      {error ? <ErrorBlock message={getErrorMessage(error)} /> : null}
+      {error ? <ErrorBlock message={formatErrorMessage(error, SETTINGS_ERROR_MESSAGE_OPTIONS)} /> : null}
       {!loading && !error ? (
         <>
           <section className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 ambient-shadow">
@@ -849,7 +848,7 @@ export const UserManagementPage: React.FC = () => {
     } catch (error) {
       notify.error({
         title: "保存用户失败",
-        description: getErrorMessage(error),
+        description: formatErrorMessage(error, SETTINGS_ERROR_MESSAGE_OPTIONS),
         debugDetail: getErrorDebugDetail(error),
       });
     } finally {
@@ -875,7 +874,7 @@ export const UserManagementPage: React.FC = () => {
     } catch (error) {
       notify.error({
         title: "重置密码失败",
-        description: getErrorMessage(error),
+        description: formatErrorMessage(error, SETTINGS_ERROR_MESSAGE_OPTIONS),
         debugDetail: getErrorDebugDetail(error),
       });
     } finally {
@@ -900,7 +899,7 @@ export const UserManagementPage: React.FC = () => {
         }
       />
       {loading ? <LoadingBlock label="正在加载用户、角色与权限" /> : null}
-      {error ? <ErrorBlock message={getErrorMessage(error)} /> : null}
+      {error ? <ErrorBlock message={formatErrorMessage(error, SETTINGS_ERROR_MESSAGE_OPTIONS)} /> : null}
       {!loading && !error ? (
         <>
           <section className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 ambient-shadow">

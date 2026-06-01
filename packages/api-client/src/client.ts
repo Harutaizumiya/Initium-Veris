@@ -83,7 +83,7 @@ function headersToRecord(headers: HeadersInit | undefined) {
   return output;
 }
 
-function getErrorMessage(payload: unknown) {
+function getPayloadErrorMessage(payload: unknown) {
   return payload && typeof payload === "object" && "message" in payload && typeof payload.message === "string"
     ? payload.message
     : "request_failed";
@@ -141,7 +141,7 @@ export function createApiClient(initialConfig: ApiClientConfig = {}): ApiClient 
     const payload = await response.json().catch(() => null);
 
     if (!response.ok) {
-      throw new ApiClientError(getErrorMessage(payload), response.status, getErrorCode(payload));
+      throw new ApiClientError(getPayloadErrorMessage(payload), response.status, getErrorCode(payload));
     }
 
     const token =
@@ -223,7 +223,7 @@ export function createApiClient(initialConfig: ApiClientConfig = {}): ApiClient 
         code,
         durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - startedAt),
       });
-      throw new ApiClientError(getErrorMessage(payload), response.status, code);
+      throw new ApiClientError(getPayloadErrorMessage(payload), response.status, code);
     }
 
     if (!payload || typeof payload !== "object" || !("data" in payload)) {

@@ -4,6 +4,7 @@ import {
   ApiClientError,
   clearCsrfToken,
   clearStoredAuthToken,
+  formatErrorMessage,
   getCurrentUser,
   login as loginRequest,
   logout as logoutRequest,
@@ -28,13 +29,11 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function getInitializationErrorMessage(error: unknown) {
-  if (error instanceof ApiClientError && error.status === 401) {
-    return null;
-  }
-
-  return "登录状态校验失败，请检查网络或稍后重试。";
-}
+const AUTH_INITIALIZATION_ERROR_MESSAGE_OPTIONS = {
+  fallback: "登录状态校验失败，请检查网络或稍后重试。",
+  apiClientFallback: () => "登录状态校验失败，请检查网络或稍后重试。",
+  includeNativeErrorMessage: false,
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
@@ -73,7 +72,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           event: "auth_initialization_failed",
           error,
         });
-        setInitializationError(getInitializationErrorMessage(error));
+        setInitializationError(
+          error instanceof ApiClientError && error.status === 401 ? null : formatErrorMessage(error, AUTH_INITIALIZATION_ERROR_MESSAGE_OPTIONS),
+        );
       }
     } finally {
       setLoading(false);

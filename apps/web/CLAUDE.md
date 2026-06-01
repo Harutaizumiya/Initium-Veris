@@ -72,7 +72,7 @@ Each file exports DTO types and functions that call `requestJson<T>()`. Barrel r
 - **Styling**: Tailwind utility classes via `cn()` helper (`src/lib/utils.ts` — clsx + tailwind-merge). Custom theme tokens (colors, fonts) in `src/index.css` via `@theme` directive. `.ambient-shadow` for card/section elevations, `.glass-header` for header backdrop.
 - **Sidebar**: Fixed-position with animated width (80px collapsed / 256px expanded). Content area animates `margin-left` in sync via `LayoutContext`. Uses `cubic-bezier(0.22, 1, 0.36, 1)` easing (500ms). `LayoutContext` provides `sidebarCollapsed` and `isSidebarAnimating` via two separate contexts (`SidebarCollapsedContext`, `SidebarAnimatingContext`) to minimize re-renders.
 - **Modals**: Pattern is `AnimatePresence` + Motion backdrop + Motion panel, with `pointer-events-none` outer and `pointer-events-auto` inner for click-outside-to-close. Submitting state disables close.
-- **Data loading**: Pages fetch on mount with an `isLoading` flag → centered spinner. Errors caught and displayed as red banners with Chinese messages via per-page `getErrorMessage()` helpers. Empty states shown when no data.
+- **Data loading**: Pages fetch on mount with an `isLoading` flag → centered spinner. Errors caught and displayed as red banners with Chinese messages via the shared `formatErrorMessage()` helper. Empty states shown when no data.
 - **Auth wiring**: Pages use `useAuth()` for permission checks. API calls that 401 trigger automatic logout via global `unauthorizedHandler`.
 
 ### Product ↔ Inventory relationship

@@ -61,6 +61,7 @@ Origin 当前是一套明亮、圆润、卡片化的食品库存工作台设计�
 - 新增 Web 组件优先复用 `bg-surface`、`bg-surface-container-lowest`、`text-on-surface`、`text-primary` 等 token。
 - 新增移动端组件应使用同名 token 值，避免另起一套颜色体系。
 - 调试模式可以展示接口状态码和错误详情；生产界面只展示用户可理解的业务文案。
+- 用户可见错误文案必须通过共享 `formatErrorMessage()` 生成；页面只维护业务覆盖配置，不维护本地错误提示 helper。
 
 ## Notification Rules
 - Web 全局浮动通知的唯一入口是 `apps/web/src/providers/NotificationProvider.tsx` 提供的 `useNotification()`。

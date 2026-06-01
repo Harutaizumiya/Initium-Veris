@@ -43,6 +43,7 @@ import {
   configureApiClient,
   createBatch,
   createBatchOperation,
+  formatErrorMessage,
   createProduct,
   createQrScan,
   createRole,
@@ -89,6 +90,22 @@ declare const process:
 const API_BASE_URL =
   process?.env?.EXPO_PUBLIC_API_BASE_URL ||
   (Platform.OS === "android" ? "http://10.0.2.2:8000/api" : "http://localhost:8000/api");
+
+const MOBILE_ERROR_MESSAGE_OPTIONS = {
+  apiClientStatusMessages: {
+    401: "登录状态已失效，请重新登录。",
+    403: "当前账号没有执行该操作的权限。",
+  },
+  apiClientMessages: {
+    validation_error: "提交内容不完整或格式不正确。",
+    conflict: "数据冲突，请刷新后重试。",
+  },
+};
+
+const MOBILE_LOGIN_ERROR_MESSAGE_OPTIONS = {
+  ...MOBILE_ERROR_MESSAGE_OPTIONS,
+  fallback: "登录失败，请检查账号密码或后端服务。",
+};
 
 let mobileAuthToken: string | null = null;
 const mobileCookies = new Map<string, string>();
@@ -475,7 +492,7 @@ function LoginScreen() {
     try {
       await login(username, password, remember);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "登录失败，请检查账号密码或后端服务。"));
+      setError(formatErrorMessage(requestError, MOBILE_LOGIN_ERROR_MESSAGE_OPTIONS));
     } finally {
       setSubmitting(false);
     }
@@ -589,7 +606,7 @@ function DashboardScreen() {
     <RefreshableScreen refreshing={dashboardQuery.isRefetching} onRefresh={dashboardQuery.refetch}>
       <PageIntro title="库存总览" description="当前在库、临期、过期和健康率直接来自后端看板接口。" />
       {dashboardQuery.isLoading ? <LoadingCard label="正在加载总览" /> : null}
-      {dashboardQuery.error ? <InlineAlert type="error" message={getErrorMessage(dashboardQuery.error)} /> : null}
+      {dashboardQuery.error ? <InlineAlert type="error" message={formatErrorMessage(dashboardQuery.error, MOBILE_ERROR_MESSAGE_OPTIONS)} /> : null}
       {dashboardQuery.data ? (
         <>
           <View style={styles.statGrid}>
@@ -665,7 +682,7 @@ function ProductsScreen({ onToast }: { onToast: (toast: ToastState) => void }) {
             await reload();
             onToast({ type: "success", title: "货物已删除" });
           } catch (error) {
-            onToast({ type: "error", title: "删除失败", message: getErrorMessage(error) });
+            onToast({ type: "error", title: "删除失败", message: formatErrorMessage(error, MOBILE_ERROR_MESSAGE_OPTIONS) });
           }
         },
       },
@@ -687,7 +704,7 @@ function ProductsScreen({ onToast }: { onToast: (toast: ToastState) => void }) {
         />
       ) : null}
       {productsQuery.isLoading ? <LoadingCard label="正在加载货物" /> : null}
-      {productsQuery.error ? <InlineAlert type="error" message={getErrorMessage(productsQuery.error)} /> : null}
+      {productsQuery.error ? <InlineAlert type="error" message={formatErrorMessage(productsQuery.error, MOBILE_ERROR_MESSAGE_OPTIONS)} /> : null}
       {products.map((product) => (
         <InfoCard key={product.id}>
           <View style={styles.cardHeaderRow}>
@@ -721,7 +738,7 @@ function ProductsScreen({ onToast }: { onToast: (toast: ToastState) => void }) {
           setModalOpen(false);
           onToast({ type: "success", title: editing ? "货物已更新" : "货物已创建" });
         }}
-        onError={(error) => onToast({ type: "error", title: "保存失败", message: getErrorMessage(error) })}
+        onError={(error) => onToast({ type: "error", title: "保存失败", message: formatErrorMessage(error, MOBILE_ERROR_MESSAGE_OPTIONS) })}
       />
     </RefreshableScreen>
   );
@@ -830,7 +847,7 @@ function InventoryScreen({ onToast }: { onToast: (toast: ToastState) => void }) 
       </View>
       {hasPermission("batch_operations_add") ? <PrimaryButton label="新增库存" icon={Plus} onPress={() => setBatchModalOpen(true)} /> : null}
       {batchesQuery.isLoading ? <LoadingCard label="正在加载库存" /> : null}
-      {batchesQuery.error ? <InlineAlert type="error" message={getErrorMessage(batchesQuery.error)} /> : null}
+      {batchesQuery.error ? <InlineAlert type="error" message={formatErrorMessage(batchesQuery.error, MOBILE_ERROR_MESSAGE_OPTIONS)} /> : null}
       {activeBatches.map((batch) => (
         <BatchCard key={batch.id} batch={batch}>
           <View style={styles.actionRow}>
@@ -850,7 +867,7 @@ function InventoryScreen({ onToast }: { onToast: (toast: ToastState) => void }) 
           setBatchModalOpen(false);
           onToast({ type: "success", title: "库存已入库" });
         }}
-        onError={(error) => onToast({ type: "error", title: "入库失败", message: getErrorMessage(error) })}
+        onError={(error) => onToast({ type: "error", title: "入库失败", message: formatErrorMessage(error, MOBILE_ERROR_MESSAGE_OPTIONS) })}
       />
       <OperationModal
         batch={operationBatch}
@@ -860,7 +877,7 @@ function InventoryScreen({ onToast }: { onToast: (toast: ToastState) => void }) 
           setOperationBatch(null);
           onToast({ type: "success", title: "库存操作已保存" });
         }}
-        onError={(error) => onToast({ type: "error", title: "操作失败", message: getErrorMessage(error) })}
+        onError={(error) => onToast({ type: "error", title: "操作失败", message: formatErrorMessage(error, MOBILE_ERROR_MESSAGE_OPTIONS) })}
       />
     </RefreshableScreen>
   );
@@ -1021,7 +1038,7 @@ function LossScreen({ onToast }: { onToast: (toast: ToastState) => void }) {
           setSelectedBatch(null);
           onToast({ type: "success", title: "报损已提交" });
         }}
-        onError={(error) => onToast({ type: "error", title: "报损失败", message: getErrorMessage(error) })}
+        onError={(error) => onToast({ type: "error", title: "报损失败", message: formatErrorMessage(error, MOBILE_ERROR_MESSAGE_OPTIONS) })}
       />
       <LossHistoryModal
         open={historyOpen}
@@ -1031,7 +1048,7 @@ function LossScreen({ onToast }: { onToast: (toast: ToastState) => void }) {
           await reload();
           onToast({ type: "success", title: "报损已撤销" });
         }}
-        onError={(error) => onToast({ type: "error", title: "撤销失败", message: getErrorMessage(error) })}
+        onError={(error) => onToast({ type: "error", title: "撤销失败", message: formatErrorMessage(error, MOBILE_ERROR_MESSAGE_OPTIONS) })}
       />
     </RefreshableScreen>
   );
@@ -1176,7 +1193,7 @@ function QrScanScreen({ onToast }: { onToast: (toast: ToastState) => void }) {
       setCameraOpen(false);
       onToast({ type: scanResult.status === "valid" ? "success" : "warning", title: "扫码审计已提交", message: scanResult.message });
     } catch (error) {
-      onToast({ type: "error", title: "扫码失败", message: getErrorMessage(error) });
+      onToast({ type: "error", title: "扫码失败", message: formatErrorMessage(error, MOBILE_ERROR_MESSAGE_OPTIONS) });
     } finally {
       setSubmitting(false);
     }
@@ -1251,7 +1268,7 @@ function AnalyticsScreen() {
         onChange={(value) => setRange(value as AnalyticsRange)}
       />
       {analyticsQuery.isLoading ? <LoadingCard label="正在加载分析" /> : null}
-      {analyticsQuery.error ? <InlineAlert type="error" message={getErrorMessage(analyticsQuery.error)} /> : null}
+      {analyticsQuery.error ? <InlineAlert type="error" message={formatErrorMessage(analyticsQuery.error, MOBILE_ERROR_MESSAGE_OPTIONS)} /> : null}
       {analyticsQuery.data ? (
         <>
           <View style={styles.statGrid}>
@@ -1393,7 +1410,7 @@ function RolesPanel({ onToast }: { onToast: (toast: ToastState) => void }) {
             await reload();
             onToast({ type: "success", title: "角色已删除" });
           } catch (error) {
-            onToast({ type: "error", title: "删除失败", message: getErrorMessage(error) });
+            onToast({ type: "error", title: "删除失败", message: formatErrorMessage(error, MOBILE_ERROR_MESSAGE_OPTIONS) });
           }
         },
       },
@@ -1423,7 +1440,7 @@ function RolesPanel({ onToast }: { onToast: (toast: ToastState) => void }) {
           setModalOpen(false);
           onToast({ type: "success", title: editing ? "角色已更新" : "角色已创建" });
         }}
-        onError={(error) => onToast({ type: "error", title: "保存失败", message: getErrorMessage(error) })}
+        onError={(error) => onToast({ type: "error", title: "保存失败", message: formatErrorMessage(error, MOBILE_ERROR_MESSAGE_OPTIONS) })}
       />
     </View>
   );
@@ -1512,7 +1529,7 @@ function UsersPanel({ onToast }: { onToast: (toast: ToastState) => void }) {
           setModalOpen(false);
           onToast({ type: "success", title: editing ? "用户已更新" : "用户已创建" });
         }}
-        onError={(error) => onToast({ type: "error", title: "保存失败", message: getErrorMessage(error) })}
+        onError={(error) => onToast({ type: "error", title: "保存失败", message: formatErrorMessage(error, MOBILE_ERROR_MESSAGE_OPTIONS) })}
       />
     </View>
   );
@@ -1957,28 +1974,6 @@ function Toast({ onClose, toast }: { onClose: () => void; toast: ToastState | nu
       {toast.message ? <Text style={styles.toastMessage}>{toast.message}</Text> : null}
     </Pressable>
   );
-}
-
-function getErrorMessage(error: unknown, fallback = "请求失败，请稍后重试。") {
-  if (error instanceof ApiClientError) {
-    if (error.status === 401) {
-      return "登录状态已失效，请重新登录。";
-    }
-    if (error.status === 403) {
-      return "当前账号没有执行该操作的权限。";
-    }
-    if (error.message === "validation_error") {
-      return "提交内容不完整或格式不正确。";
-    }
-    if (error.message === "conflict") {
-      return "数据冲突，请刷新后重试。";
-    }
-    return `请求失败：${error.message}`;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return fallback;
 }
 
 function formatNumber(value: number) {

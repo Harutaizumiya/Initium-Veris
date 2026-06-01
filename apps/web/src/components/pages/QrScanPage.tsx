@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { CheckCircle2, ClipboardPaste, Keyboard, LoaderCircle, QrCode, RotateCcw, ScanLine } from "lucide-react";
-import { ApiClientError, createQrScan, listQrScans, queryKeys, type QrScanAuditItemDto, type QrScanResultDto } from "../../api";
+import { createQrScan, formatErrorMessage, listQrScans, queryKeys, type QrScanAuditItemDto, type QrScanResultDto } from "../../api";
 import { cn } from "../../lib/utils";
 import { createClientScanId, getQrScanStatusMeta } from "../../lib/qrScan";
 import { useNotification } from "../../providers/NotificationProvider";
@@ -33,24 +33,13 @@ function formatDate(value: string) {
   });
 }
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiClientError) {
-    switch (error.message) {
-      case "validation_error":
-        return "二维码提交参数不符合后端校验规则。";
-      case "invalid_response":
-        return "后端返回格式不符合约定。";
-      default:
-        return `请求失败：${error.message}`;
-    }
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "扫码审计提交失败，请稍后重试。";
-}
+const QR_SCAN_ERROR_MESSAGE_OPTIONS = {
+  fallback: "扫码审计提交失败，请稍后重试。",
+  apiClientMessages: {
+    validation_error: "二维码提交参数不符合后端校验规则。",
+    invalid_response: "后端返回格式不符合约定。",
+  },
+};
 
 function getScanWindowLabel(days: ScanWindowDays) {
   return days === DEBUG_SCAN_WINDOW_DAYS ? "最近 7 天" : "今日";
@@ -133,10 +122,10 @@ export const QrScanPage: React.FC = () => {
       setQrInput("");
       window.setTimeout(() => inputRef.current?.focus(), 0);
     } catch (requestError) {
-      setError(getErrorMessage(requestError));
+      setError(formatErrorMessage(requestError, QR_SCAN_ERROR_MESSAGE_OPTIONS));
       notify.error({
         title: "扫码审计失败",
-        description: getErrorMessage(requestError),
+        description: formatErrorMessage(requestError, QR_SCAN_ERROR_MESSAGE_OPTIONS),
         debugDetail: getErrorDebugDetail(requestError),
       });
     } finally {
@@ -303,7 +292,9 @@ export const QrScanPage: React.FC = () => {
                 正在加载扫码记录...
               </div>
             ) : scanHistoryQuery.error ? (
-              <div className="px-6 py-12 text-center text-sm text-red-600">扫码记录加载失败：{getErrorMessage(scanHistoryQuery.error)}</div>
+              <div className="px-6 py-12 text-center text-sm text-red-600">
+                扫码记录加载失败：{formatErrorMessage(scanHistoryQuery.error, QR_SCAN_ERROR_MESSAGE_OPTIONS)}
+              </div>
             ) : recentScans.length > 0 ? (
               <div className="px-6 py-6">
                 <QrScanHistoryCards scans={pagedRecentScans} />

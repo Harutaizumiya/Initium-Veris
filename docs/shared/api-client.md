@@ -1,7 +1,7 @@
 # Shared API Client
 
 ## Overview
-`packages/api-client` 是 Web 和移动端共享的 TypeScript API 层。它不依赖 React，负责统一请求、认证 header、CSRF、错误模型、DTO 类型、资源接口和 React Query key。
+`packages/api-client` 是 Web 和移动端共享的 TypeScript API 层。它不依赖 React，负责统一请求、认证 header、CSRF、错误模型、错误提示格式化、DTO 类型、资源接口和 React Query key。
 
 ## Exports
 `src/index.ts` 重新导出：
@@ -12,6 +12,7 @@
 - `batches`
 - `client`
 - `dashboard`
+- `errorMessages`
 - `inventory`
 - `products`
 - `qrScans`
@@ -25,6 +26,12 @@
 - 可通过 `configureApiClient` 注入 `baseUrl`、`fetchFn`、`getAuthHeaders`、`readCookie`、logger 和 401 handler
 - 响应必须包含 `{ code, message, data }`，client 只返回 `data`
 - 非 2xx 响应抛出 `ApiClientError(message, status, code)`
+
+## Error Messages
+- 用户可见错误提示统一使用 `formatErrorMessage(error, options)`。
+- Web 和移动端不得在页面、组件或 App 文件内自行维护 `getErrorMessage` 一类本地错误提示 helper。
+- 页面级业务差异通过 `apiClientMessages`、`apiClientStatusMessages`、`apiClientMessage` 或 `apiClientFallback` 传入，不要把业务文案硬编码进共享默认逻辑。
+- `formatErrorMessage` 是纯格式化函数，不记录日志、不触发通知、不修改状态；日志仍由 API client、ErrorBoundary 或调用方显式处理。
 
 ## Auth Paths
 - `login` 当前调用 `/auth/mobile-login`，返回 `authToken`、`expiresIn` 和转换后的 `AuthenticatedUser`

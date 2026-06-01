@@ -1,22 +1,25 @@
 import React, { useMemo, useState } from "react";
 import { Eye, EyeOff, LockKeyhole, LoaderCircle, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ApiClientError } from "../../api";
+import { formatErrorMessage } from "../../api";
 import { OperationAlert } from "../common/OperationAlert";
 import { useAuth } from "../../providers/AuthProvider";
 
-function getLoginErrorMessage(error: unknown) {
-  if (error instanceof ApiClientError) {
+const LOGIN_ERROR_MESSAGE_OPTIONS = {
+  fallback: "登录失败，请稍后重试。",
+  apiClientMessage: (error: { status: number; message: string }) => {
     if (error.status === 400 && error.message === "validation_error") {
       return "请输入正确的账号和密码。";
     }
     if (error.status === 401 || error.message === "unauthenticated") {
       return "账号或密码错误。";
     }
-  }
 
-  return "登录失败，请稍后重试。";
-}
+    return null;
+  },
+  apiClientFallback: () => "登录失败，请稍后重试。",
+  includeNativeErrorMessage: false,
+};
 
 function getRedirectTarget(state: unknown) {
   const from = (state as { from?: { pathname?: string; search?: string } } | null)?.from;
@@ -51,7 +54,7 @@ export const LoginPage: React.FC = () => {
       await auth.login({ username, password, remember: rememberMe });
       navigate(redirectTarget, { replace: true });
     } catch (loginError) {
-      setError(getLoginErrorMessage(loginError));
+      setError(formatErrorMessage(loginError, LOGIN_ERROR_MESSAGE_OPTIONS));
     } finally {
       setSubmitting(false);
     }

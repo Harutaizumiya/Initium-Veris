@@ -15,11 +15,11 @@ import {
   X,
 } from "lucide-react";
 import {
-  ApiClientError,
   approveStocktake,
   cancelStocktake,
   countStocktakeItem,
   createStocktake,
+  formatErrorMessage,
   getStocktake,
   listBatches,
   listProducts,
@@ -66,21 +66,13 @@ const statusClassNames: Record<StocktakeTaskStatus, string> = {
   cancelled: "border-red-200 bg-red-50 text-red-600",
 };
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiClientError) {
-    switch (error.message) {
-      case "validation_error":
-        return "请求参数不符合后端校验规则。";
-      case "conflict":
-        return "当前盘点状态不允许执行该操作，或审批调整会导致库存为负。";
-      case "not_found":
-        return "目标盘点任务或盘点项不存在。";
-      default:
-        return `请求失败：${error.message}`;
-    }
-  }
-  return error instanceof Error ? error.message : "请求失败，请稍后重试。";
-}
+const STOCKTAKE_ERROR_MESSAGE_OPTIONS = {
+  apiClientMessages: {
+    validation_error: "请求参数不符合后端校验规则。",
+    conflict: "当前盘点状态不允许执行该操作，或审批调整会导致库存为负。",
+    not_found: "目标盘点任务或盘点项不存在。",
+  },
+};
 
 function formatDateTime(value: string | null) {
   if (!value) {
@@ -687,7 +679,11 @@ export function StocktakePage() {
     setApprovalRemarks("");
   }, [selectedTaskId]);
 
-  const pageError = tasksQuery.error ? getErrorMessage(tasksQuery.error) : detailQuery.error ? getErrorMessage(detailQuery.error) : null;
+  const pageError = tasksQuery.error
+    ? formatErrorMessage(tasksQuery.error, STOCKTAKE_ERROR_MESSAGE_OPTIONS)
+    : detailQuery.error
+      ? formatErrorMessage(detailQuery.error, STOCKTAKE_ERROR_MESSAGE_OPTIONS)
+      : null;
 
   const reloadStocktakes = async (taskId = selectedTaskId) => {
     await Promise.all([
@@ -709,7 +705,7 @@ export function StocktakePage() {
       await reloadStocktakes("task_type" in result ? result.id : selectedTaskId);
       notify.notify(success);
     } catch (error) {
-      notify.error({ title: "操作未完成", description: getErrorMessage(error) });
+      notify.error({ title: "操作未完成", description: formatErrorMessage(error, STOCKTAKE_ERROR_MESSAGE_OPTIONS) });
     } finally {
       setSubmitting(false);
     }
@@ -725,8 +721,8 @@ export function StocktakePage() {
       await reloadStocktakes(task.id);
       notify.success({ title: "盘点任务已创建", description: `已生成 ${task.stats.total_items} 个默认盘点项。` });
     } catch (error) {
-      setCreateError(getErrorMessage(error));
-      notify.error({ title: "盘点任务创建失败", description: getErrorMessage(error) });
+      setCreateError(formatErrorMessage(error, STOCKTAKE_ERROR_MESSAGE_OPTIONS));
+      notify.error({ title: "盘点任务创建失败", description: formatErrorMessage(error, STOCKTAKE_ERROR_MESSAGE_OPTIONS) });
     } finally {
       setSubmitting(false);
     }

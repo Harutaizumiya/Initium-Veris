@@ -5,6 +5,7 @@ import { History, LoaderCircle, MapPin, Package, RotateCcw, Search, TriangleAler
 import {
   ApiClientError,
   createBatchOperation,
+  formatErrorMessage,
   listBatchOperations,
   listBatches,
   listProducts,
@@ -172,26 +173,13 @@ async function loadLossOperationsWithinWindow(batchId: number, cutoffMs: number)
   return items;
 }
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiClientError) {
-    switch (error.message) {
-      case "validation_error":
-        return "请求参数不符合后端校验规则。";
-      case "conflict":
-        return "操作失败，当前批次数据可能已被其他人更新，或该记录已不允许再次撤销。";
-      case "not_found":
-        return "目标批次不存在。";
-      default:
-        return `请求失败：${error.message}`;
-    }
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "请求失败，请稍后重试。";
-}
+const LOSS_REPORT_ERROR_MESSAGE_OPTIONS = {
+  apiClientMessages: {
+    validation_error: "请求参数不符合后端校验规则。",
+    conflict: "操作失败，当前批次数据可能已被其他人更新，或该记录已不允许再次撤销。",
+    not_found: "目标批次不存在。",
+  },
+};
 
 function getErrorDebugDetail(error: unknown) {
   if (error instanceof ApiClientError) {
@@ -786,9 +774,9 @@ export const LossReportPage: React.FC = () => {
 
   const isLoading = productsQuery.isLoading || batchesQuery.isLoading;
   const pageError = productsQuery.error
-    ? getErrorMessage(productsQuery.error)
+    ? formatErrorMessage(productsQuery.error, LOSS_REPORT_ERROR_MESSAGE_OPTIONS)
     : batchesQuery.error
-      ? getErrorMessage(batchesQuery.error)
+      ? formatErrorMessage(batchesQuery.error, LOSS_REPORT_ERROR_MESSAGE_OPTIONS)
       : null;
 
   const productCards = useMemo(() => {
@@ -935,10 +923,10 @@ export const LossReportPage: React.FC = () => {
       });
       closeLossModal();
     } catch (error) {
-      setSubmitError(getErrorMessage(error));
+      setSubmitError(formatErrorMessage(error, LOSS_REPORT_ERROR_MESSAGE_OPTIONS));
       notify.error({
         title: "报损提交失败",
-        description: getErrorMessage(error),
+        description: formatErrorMessage(error, LOSS_REPORT_ERROR_MESSAGE_OPTIONS),
         debugDetail: getErrorDebugDetail(error),
       });
     } finally {
@@ -989,10 +977,10 @@ export const LossReportPage: React.FC = () => {
       });
       closeRevertModal();
     } catch (error) {
-      setRevertError(getErrorMessage(error));
+      setRevertError(formatErrorMessage(error, LOSS_REPORT_ERROR_MESSAGE_OPTIONS));
       notify.error({
         title: "撤销报损失败",
-        description: getErrorMessage(error),
+        description: formatErrorMessage(error, LOSS_REPORT_ERROR_MESSAGE_OPTIONS),
         debugDetail: getErrorDebugDetail(error),
       });
     } finally {
@@ -1202,7 +1190,7 @@ export const LossReportPage: React.FC = () => {
         showExtendedWindowToggle={isDebugMode}
         entries={historyQuery.data ?? []}
         loading={isHistoryLoading}
-        error={historyQuery.error ? getErrorMessage(historyQuery.error) : null}
+        error={historyQuery.error ? formatErrorMessage(historyQuery.error, LOSS_REPORT_ERROR_MESSAGE_OPTIONS) : null}
         revertingEntry={revertingEntry}
         revertForm={revertForm}
         revertError={revertError}

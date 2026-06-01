@@ -4,6 +4,7 @@ export * from "./authManagement";
 export * from "./batches";
 export * from "./client";
 export * from "./dashboard";
+export * from "./errorMessages";
 export * from "./inventory";
 export * from "./products";
 export * from "./qrScans";

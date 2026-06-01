@@ -11,7 +11,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { ApiClientError, createProduct, deleteProduct, listProductCategories, listProducts, queryKeys, updateProduct } from "../../api";
+import { ApiClientError, createProduct, deleteProduct, formatErrorMessage, listProductCategories, listProducts, queryKeys, updateProduct } from "../../api";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../providers/AuthProvider";
 import { useNotification } from "../../providers/NotificationProvider";
@@ -54,26 +54,13 @@ function getUniqueOptions(values: Array<string | null>) {
   );
 }
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiClientError) {
-    switch (error.message) {
-      case "validation_error":
-        return "请求参数不符合后端校验规则。";
-      case "conflict":
-        return "数据冲突，请检查条码是否重复。";
-      case "not_found":
-        return "目标数据不存在，可能已被其他人删除。";
-      default:
-        return `请求失败：${error.message}`;
-    }
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "请求失败，请稍后重试。";
-}
+const PRODUCT_ERROR_MESSAGE_OPTIONS = {
+  apiClientMessages: {
+    validation_error: "请求参数不符合后端校验规则。",
+    conflict: "数据冲突，请检查条码是否重复。",
+    not_found: "目标数据不存在，可能已被其他人删除。",
+  },
+};
 
 function getErrorDebugDetail(error: unknown) {
   if (error instanceof ApiClientError) {
@@ -376,9 +363,9 @@ export const ProductManagementPage: React.FC = () => {
   const categoryOptionsFromApi = categoriesQuery.data ?? [];
   const isLoading = productsQuery.isLoading || categoriesQuery.isLoading;
   const errorMessage = productsQuery.error
-    ? getErrorMessage(productsQuery.error)
+    ? formatErrorMessage(productsQuery.error, PRODUCT_ERROR_MESSAGE_OPTIONS)
     : categoriesQuery.error
-      ? getErrorMessage(categoriesQuery.error)
+      ? formatErrorMessage(categoriesQuery.error, PRODUCT_ERROR_MESSAGE_OPTIONS)
       : mutationError;
 
   const categoryOptions = useMemo(
@@ -553,11 +540,11 @@ export const ProductManagementPage: React.FC = () => {
       if (error instanceof ApiClientError && error.message === "conflict") {
         setBarcodeError("条码已存在，请使用唯一条码。");
       } else {
-        setSubmitError(getErrorMessage(error));
+        setSubmitError(formatErrorMessage(error, PRODUCT_ERROR_MESSAGE_OPTIONS));
       }
       notify.error({
         title: editingProduct ? "货物更新失败" : "货物创建失败",
-        description: getErrorMessage(error),
+        description: formatErrorMessage(error, PRODUCT_ERROR_MESSAGE_OPTIONS),
         debugDetail: getErrorDebugDetail(error),
       });
     } finally {
@@ -589,10 +576,10 @@ export const ProductManagementPage: React.FC = () => {
       }
       setProductToDelete(null);
     } catch (error) {
-      setMutationError(getErrorMessage(error));
+      setMutationError(formatErrorMessage(error, PRODUCT_ERROR_MESSAGE_OPTIONS));
       notify.error({
         title: "货物删除失败",
-        description: getErrorMessage(error),
+        description: formatErrorMessage(error, PRODUCT_ERROR_MESSAGE_OPTIONS),
         debugDetail: getErrorDebugDetail(error),
       });
     } finally {

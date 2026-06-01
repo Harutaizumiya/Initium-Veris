@@ -7,6 +7,7 @@ import {
   buildInventoryDetail,
   createBatch,
   createBatchOperation,
+  formatErrorMessage,
   getBatchLabelPayload,
   getShelfLifeMetricsFromDates,
   listBatches,
@@ -194,26 +195,13 @@ function getCardPlaceholderCount(itemCount: number, columnCount: number) {
   return remainder === 0 ? 0 : columnCount - remainder;
 }
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiClientError) {
-    switch (error.message) {
-      case "validation_error":
-        return "请求参数不符合后端校验规则。";
-      case "conflict":
-        return "数据冲突，请检查批次或商品信息。";
-      case "not_found":
-        return "目标数据不存在。";
-      default:
-        return `请求失败：${error.message}`;
-    }
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "请求失败，请稍后重试。";
-}
+const INVENTORY_ERROR_MESSAGE_OPTIONS = {
+  apiClientMessages: {
+    validation_error: "请求参数不符合后端校验规则。",
+    conflict: "数据冲突，请检查批次或商品信息。",
+    not_found: "目标数据不存在。",
+  },
+};
 
 function getErrorDebugDetail(error: unknown) {
   if (error instanceof ApiClientError) {
@@ -684,9 +672,9 @@ export const InventoryStatusPage: React.FC = () => {
   );
   const isLoading = batchesQuery.isLoading || (!isCreateBatchOpen && productsQuery.isLoading);
   const pageError = productsQuery.error
-    ? getErrorMessage(productsQuery.error)
+    ? formatErrorMessage(productsQuery.error, INVENTORY_ERROR_MESSAGE_OPTIONS)
     : batchesQuery.error
-      ? getErrorMessage(batchesQuery.error)
+      ? formatErrorMessage(batchesQuery.error, INVENTORY_ERROR_MESSAGE_OPTIONS)
       : null;
 
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
@@ -872,10 +860,10 @@ export const InventoryStatusPage: React.FC = () => {
       closeLossModal();
       closeDetail();
     } catch (error) {
-      setLossError(getErrorMessage(error));
+      setLossError(formatErrorMessage(error, INVENTORY_ERROR_MESSAGE_OPTIONS));
       notify.error({
         title: "报损提交失败",
-        description: getErrorMessage(error),
+        description: formatErrorMessage(error, INVENTORY_ERROR_MESSAGE_OPTIONS),
         debugDetail: getErrorDebugDetail(error),
       });
     } finally {
@@ -945,7 +933,7 @@ export const InventoryStatusPage: React.FC = () => {
       if (error instanceof ApiClientError && error.status === 409) {
         setLabelPrintError("后端二维码凭证签发失败（409 conflict）。请确认后端已创建 batch_qr_credentials 表并完成二维码审计相关数据库初始化。");
       } else {
-        setLabelPrintError(getErrorMessage(error));
+        setLabelPrintError(formatErrorMessage(error, INVENTORY_ERROR_MESSAGE_OPTIONS));
       }
     } finally {
       setIsLabelPrintLoading(false);
@@ -1032,10 +1020,10 @@ export const InventoryStatusPage: React.FC = () => {
       setSelectedProduct(null);
       setNewBatchForm(DEFAULT_NEW_BATCH_FORM);
     } catch (error) {
-      setNewBatchError(getErrorMessage(error));
+      setNewBatchError(formatErrorMessage(error, INVENTORY_ERROR_MESSAGE_OPTIONS));
       notify.error({
         title: "库存入库失败",
-        description: getErrorMessage(error),
+        description: formatErrorMessage(error, INVENTORY_ERROR_MESSAGE_OPTIONS),
         debugDetail: getErrorDebugDetail(error),
       });
     } finally {

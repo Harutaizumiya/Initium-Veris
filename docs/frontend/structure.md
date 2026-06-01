@@ -1,7 +1,7 @@
 # Frontend Structure
 
 ## Overview
-前端由 Web 管理端、Expo 移动端和共享 API client 三部分组成。Web 负责桌面中后台体验，移动端负责移动工作台和扫码，二者共享 `@initium-veris/api-client` 的接口、类型、DTO 转换、query keys 和请求错误模型。
+前端由 Web 管理端、Expo 移动端和共享 API client 三部分组成。Web 负责桌面中后台体验，移动端负责移动工作台和扫码，二者共享 `@initium-veris/api-client` 的接口、类型、DTO 转换、query keys、请求错误模型和错误提示格式化入口。
 
 ## Web App
 
@@ -32,6 +32,7 @@
 - 认证：`auth.ts` 使用 `/auth/mobile-login` 登录，`/auth/me` 初始化用户，`/auth/logout` 退出。
 - 资源接口：`products.ts`、`batches.ts`、`inventory.ts`、`dashboard.ts`、`analytics.ts`、`qrScans.ts`、`authManagement.ts` 覆盖当前业务 API。
 - 缓存键：`queryKeys.ts` 为 Web 和移动端共享 React Query key。
+- 错误提示：`errorMessages.ts` 提供 `formatErrorMessage`。页面只能传入业务覆盖配置，不应新增本地 `getErrorMessage` helper。
 
 ## Data Flow
 页面组件通过 React Query 调用共享 API client。client 将请求发送到 `VITE_API_BASE_URL` 或 `EXPO_PUBLIC_API_BASE_URL`，收到后端统一响应后只返回 `data`。登录成功后，Web 将 `auth_token` 写入 localStorage/sessionStorage，移动端写入内存变量；后续状态变更请求以 Bearer token 跳过 CSRF，cookie 登录路径仍由 client 自动获取 `/auth/csrf`。

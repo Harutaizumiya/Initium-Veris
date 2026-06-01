@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Activity, Download, LoaderCircle, MoreHorizontal, RefreshCw, Timer, TrendingDown } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
-  ApiClientError,
+  formatErrorMessage,
   getAnalyticsSnapshot,
   getAnalyticsSummary,
   queryKeys,
@@ -34,24 +34,14 @@ function useChartReady() {
   return ready;
 }
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiClientError) {
-    switch (error.message) {
-      case "validation_error":
-        return "分析范围参数不符合后端校验规则。";
-      case "conflict":
-        return "后端暂时无法生成分析聚合数据。";
-      default:
-        return `分析数据请求失败：${error.message}`;
-    }
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "分析数据请求失败，请稍后重试。";
-}
+const ANALYTICS_ERROR_MESSAGE_OPTIONS = {
+  fallback: "分析数据请求失败，请稍后重试。",
+  apiClientMessages: {
+    validation_error: "分析范围参数不符合后端校验规则。",
+    conflict: "后端暂时无法生成分析聚合数据。",
+  },
+  apiClientFallback: (error: Error) => `分析数据请求失败：${error.message}`,
+};
 
 function ChartSkeleton({ vertical = false }: { vertical?: boolean }) {
   return (
@@ -307,7 +297,7 @@ export const AnalyticsPage: React.FC = () => {
 
       {analyticsQuery.error ? (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-600">
-          {getErrorMessage(analyticsQuery.error)}
+          {formatErrorMessage(analyticsQuery.error, ANALYTICS_ERROR_MESSAGE_OPTIONS)}
         </div>
       ) : null}
 

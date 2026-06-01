@@ -412,6 +412,8 @@ class StocktakeCollectionView(ServiceAPIView):
         tasks, total = StocktakeService.list_tasks(
             task_type=query.validated_data.get("task_type"),
             status=query.validated_data.get("status"),
+            date_from=query.validated_data.get("date_from"),
+            date_to=query.validated_data.get("date_to"),
             page=query.validated_data["page"],
             size=query.validated_data["size"],
         )

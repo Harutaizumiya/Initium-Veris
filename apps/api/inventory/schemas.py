@@ -363,6 +363,8 @@ class AnalyticsSummarySerializer(serializers.Serializer):
 class StocktakeListQuerySerializer(serializers.Serializer):
     task_type = serializers.ChoiceField(required=False, choices=STOCKTAKE_TASK_TYPES)
     status = serializers.ChoiceField(required=False, choices=STOCKTAKE_TASK_STATUSES)
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
     page = serializers.IntegerField(required=False, default=1, min_value=1)
     size = serializers.IntegerField(required=False, default=20, min_value=1, max_value=100)
 

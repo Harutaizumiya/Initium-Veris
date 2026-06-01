@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ClipboardCheck,
+  Eye,
   LoaderCircle,
   PackagePlus,
   Play,
   Plus,
   RotateCcw,
+  Save,
   Search,
   Send,
   ShieldCheck,
@@ -97,6 +98,13 @@ function formatDateTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function localDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function formatQuantity(value: string | number | null) {
@@ -469,7 +477,8 @@ function ItemTable({
   onChangeReviewFilter,
   onChangeCount,
   onChangeRemarks,
-  onSaveCount,
+  onSaveAll,
+  changedCount,
 }: {
   task: StocktakeTaskDto;
   query: string;
@@ -481,7 +490,8 @@ function ItemTable({
   onChangeReviewFilter: (value: "all" | "gain" | "loss" | "pending") => void;
   onChangeCount: (itemId: number, value: string) => void;
   onChangeRemarks: (itemId: number, value: string) => void;
-  onSaveCount: (item: StocktakeItemDto) => void;
+  onSaveAll: () => void;
+  changedCount: number;
 }) {
   const items = filterItems(task.items ?? [], query, reviewFilter);
   const canCount = task.status === "active";
@@ -493,7 +503,7 @@ function ItemTable({
           <h3 className="font-headline text-xl font-bold text-on-surface">{canCount ? "盘点执行" : "差异复核"}</h3>
           <p className="mt-1 text-sm text-on-surface-variant">搜索商品、条码或批次号，核对系统快照与实盘差异。</p>
         </div>
-        <div className="flex flex-col gap-3 md:flex-row">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
           <label className="relative min-w-[280px]">
             <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <input
@@ -513,6 +523,17 @@ function ItemTable({
             <option value="loss">只看盘亏</option>
             <option value="pending">只看未盘</option>
           </select>
+          {canCount ? (
+            <button
+              type="button"
+              onClick={onSaveAll}
+              disabled={submitting || changedCount === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-md hover:bg-primary-container disabled:opacity-50"
+            >
+              {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}
+              暂存当前修改{changedCount ? `(${changedCount})` : ""}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -527,7 +548,6 @@ function ItemTable({
               <th className="px-5 py-4 text-right">差异</th>
               <th className="px-5 py-4">备注</th>
               <th className="px-5 py-4 text-right">状态</th>
-              {canCount ? <th className="px-5 py-4 text-right">操作</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container">
@@ -568,18 +588,6 @@ function ItemTable({
                     )}
                   </td>
                   <td className="px-5 py-4 text-right text-xs font-bold text-on-surface-variant">{item.status}</td>
-                  {canCount ? (
-                    <td className="px-5 py-4 text-right">
-                      <button
-                        type="button"
-                        disabled={submitting || !countedValue}
-                        onClick={() => onSaveCount(item)}
-                        className="rounded-2xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-container disabled:opacity-50"
-                      >
-                        保存
-                      </button>
-                    </td>
-                  ) : null}
                 </tr>
               );
             })}
@@ -593,10 +601,18 @@ function ItemTable({
 export function StocktakePage() {
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
+  const today = useMemo(() => localDateInputValue(), []);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
-  const [filters, setFilters] = useState<{ task_type: "" | StocktakeTaskType; status: "" | StocktakeTaskStatus }>({
+  const [filters, setFilters] = useState<{
+    task_type: "" | StocktakeTaskType;
+    status: "" | StocktakeTaskStatus;
+    date_from: string;
+    date_to: string;
+  }>({
     task_type: "",
     status: "",
+    date_from: today,
+    date_to: today,
   });
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
@@ -619,6 +635,8 @@ export function StocktakePage() {
   const listParams = {
     ...(filters.task_type ? { task_type: filters.task_type } : {}),
     ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.date_from ? { date_from: filters.date_from } : {}),
+    ...(filters.date_to ? { date_to: filters.date_to } : {}),
     page: 1,
     size: PAGE_SIZE,
   };
@@ -650,13 +668,6 @@ export function StocktakePage() {
   const selectedTask = detailQuery.data ?? null;
   const products = productsQuery.data?.items ?? [];
   const batches = batchesQuery.data?.items ?? [];
-
-  useEffect(() => {
-    if (selectedTaskId || tasks.length === 0) {
-      return;
-    }
-    setSelectedTaskId(tasks[0].id);
-  }, [selectedTaskId, tasks]);
 
   useEffect(() => {
     setCountedDrafts({});
@@ -712,23 +723,45 @@ export function StocktakePage() {
     }
   };
 
-  const handleSaveCount = (item: StocktakeItemDto) => {
+  const changedCountItems = useMemo(() => {
     if (!selectedTask) {
+      return [];
+    }
+    return (selectedTask.items ?? []).filter((item) => {
+      const hasCountDraft = Object.prototype.hasOwnProperty.call(countedDrafts, item.id);
+      const hasRemarksDraft = Object.prototype.hasOwnProperty.call(remarksDrafts, item.id);
+      if (!hasCountDraft && !hasRemarksDraft) {
+        return false;
+      }
+      const countedQuantity = countedDrafts[item.id] ?? item.counted_quantity ?? "";
+      const remarks = remarksDrafts[item.id] ?? item.remarks ?? "";
+      return countedQuantity !== (item.counted_quantity ?? "") || remarks !== (item.remarks ?? "");
+    });
+  }, [countedDrafts, remarksDrafts, selectedTask]);
+
+  const handleSaveAllCounts = () => {
+    if (!selectedTask || changedCountItems.length === 0) {
       return;
     }
-    const countedQuantity = countedDrafts[item.id] ?? item.counted_quantity ?? "";
-    if (!countedQuantity || Number.parseFloat(countedQuantity) < 0) {
+    const invalidItem = changedCountItems.find((item) => {
+      const countedQuantity = countedDrafts[item.id] ?? item.counted_quantity ?? "";
+      return !countedQuantity || Number.parseFloat(countedQuantity) < 0;
+    });
+    if (invalidItem) {
       setOperationError("请输入有效的实盘数量。");
       return;
     }
-    void runOperation(
-      () =>
-        countStocktakeItem(selectedTask.id, item.id, {
-          counted_quantity: countedQuantity,
+
+    void runOperation(async () => {
+      let latest: StocktakeItemDto | null = null;
+      for (const item of changedCountItems) {
+        latest = await countStocktakeItem(selectedTask.id, item.id, {
+          counted_quantity: countedDrafts[item.id] ?? item.counted_quantity ?? "",
           remarks: remarksDrafts[item.id] ?? item.remarks ?? null,
-        }),
-      { type: "success", title: "实盘数量已保存", description: `批次 ${item.batch.batch_code} 的差异已重新计算。` },
-    );
+        });
+      }
+      return latest ?? selectedTask;
+    }, { type: "success", title: "实盘数量已暂存", description: `已暂存 ${changedCountItems.length} 条盘点记录。` });
   };
 
   const headerStats = useMemo(() => selectedTask?.stats, [selectedTask]);
@@ -756,236 +789,287 @@ export function StocktakePage() {
       {operationError ? <div className="mb-6"><OperationAlert type="error" title="操作未完成" description={operationError} showIcon /></div> : null}
       {feedback ? <div className="mb-6"><OperationAlert type={feedback.type} title={feedback.title} description={feedback.description} showIcon closable /></div> : null}
 
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <section className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-5 ambient-shadow">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="font-headline text-lg font-bold text-on-surface">任务列表</h3>
-            {tasksQuery.isLoading ? <LoaderCircle size={18} className="animate-spin text-primary" /> : null}
+      <section className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-5 ambient-shadow">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <h3 className="font-headline text-xl font-bold text-on-surface">盘点任务清单</h3>
+            <p className="mt-1 text-sm text-on-surface-variant">默认展示当日工单，历史工单按指定日期范围查询。</p>
           </div>
-          <div className="mt-4 grid gap-3">
-            <select
-              value={filters.task_type}
-              onChange={(event) => setFilters((current) => ({ ...current, task_type: event.target.value as "" | StocktakeTaskType }))}
-              className="rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm"
-            >
-              <option value="">全部类型</option>
-              {Object.entries(taskTypeLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.status}
-              onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as "" | StocktakeTaskStatus }))}
-              className="rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm"
-            >
-              <option value="">全部状态</option>
-              {Object.entries(statusLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="mt-5 grid gap-3">
-            {tasks.map((task) => (
-              <button
-                key={task.id}
-                type="button"
-                onClick={() => setSelectedTaskId(task.id)}
-                className={cn(
-                  "rounded-3xl border p-4 text-left transition-colors",
-                  selectedTaskId === task.id ? "border-primary bg-primary/5" : "border-surface-container hover:bg-surface-container-low",
-                )}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="font-headline text-base font-bold text-on-surface">#{task.id} {taskTypeLabels[task.task_type]}</div>
-                  <StatusBadge status={task.status} />
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-on-surface-variant">
-                  <span>创建人：{task.created_by?.display ?? "-"}</span>
-                  <span>进度：{Math.round(task.stats.progress * 100)}%</span>
-                  <span>差异项：{task.stats.difference_items}</span>
-                  <span>{formatDateTime(task.created_at)}</span>
-                </div>
-              </button>
-            ))}
-            {!tasksQuery.isLoading && tasks.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-surface-container px-5 py-10 text-center text-sm text-on-surface-variant">
-                暂无盘点任务。
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <div className="space-y-6">
-          {selectedTask ? (
-            <>
-              <section className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-6 ambient-shadow">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="font-headline text-2xl font-extrabold text-on-surface">#{selectedTask.id} {taskTypeLabels[selectedTask.task_type]}</h3>
-                      <StatusBadge status={selectedTask.status} />
-                    </div>
-                    <p className="mt-2 text-sm text-on-surface-variant">
-                      创建于 {formatDateTime(selectedTask.created_at)}，创建人 {selectedTask.created_by?.display ?? "-"}。
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    {selectedTask.status === "active" && canSubmit ? (
-                      <button
-                        type="button"
-                        disabled={submitting}
-                        onClick={() =>
-                          void runOperation(() => submitStocktake(selectedTask.id), {
-                            type: "success",
-                            title: "盘点已提交",
-                            description: "任务已进入复核阶段。",
-                          })
-                        }
-                        className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-white"
-                      >
-                        <Send size={16} />
-                        提交复核
-                      </button>
-                    ) : null}
-                    {selectedTask.status === "submitted" && canApprove ? (
-                      <button
-                        type="button"
-                        disabled={submitting}
-                        onClick={() =>
-                          void runOperation(() => approveStocktake(selectedTask.id, { remarks: approvalRemarks }), {
-                            type: "success",
-                            title: "盘点已审批",
-                            description: "系统已为差异项生成库存调整流水。",
-                          })
-                        }
-                        className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white"
-                      >
-                        <ShieldCheck size={16} />
-                        审批确认
-                      </button>
-                    ) : null}
-                    {["draft", "active", "submitted"].includes(selectedTask.status) && canCancel ? (
-                      <button
-                        type="button"
-                        disabled={submitting}
-                        onClick={() =>
-                          void runOperation(() => cancelStocktake(selectedTask.id, { remarks: "用户取消" }), {
-                            type: "warning",
-                            title: "盘点已取消",
-                            description: "任务记录已保留，不会物理删除。",
-                          })
-                        }
-                        className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
-                      >
-                        <X size={16} />
-                        取消任务
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="mt-6 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-                  <Metric label="盘点项" value={String(headerStats?.total_items ?? 0)} />
-                  <Metric label="已盘" value={String(headerStats?.counted_items ?? 0)} />
-                  <Metric label="未盘" value={String(headerStats?.pending_items ?? 0)} />
-                  <Metric label="需复盘" value={String(headerStats?.recount_items ?? 0)} />
-                  <Metric label="差异项" value={String(headerStats?.difference_items ?? 0)} />
-                  <Metric label="差异合计" value={formatQuantity(headerStats?.total_difference_quantity ?? "0")} />
-                </div>
-              </section>
-
-              {(selectedTask.status === "draft" || selectedTask.status === "active") && canUpdateScope ? (
-                <ScopeControls
-                  task={selectedTask}
-                  products={products}
-                  batches={batches}
-                  submitting={submitting}
-                  onAdd={(input) =>
-                    void runOperation(() => updateStocktakeScope(selectedTask.id, input), {
-                      type: "success",
-                      title: "盘点范围已更新",
-                      description: "盘点清单已按所选条件补充。",
-                    })
-                  }
-                  onRemove={(batchId) =>
-                    void runOperation(() => updateStocktakeScope(selectedTask.id, { remove_batch_ids: [batchId] }), {
-                      type: "success",
-                      title: "盘点项已移除",
-                      description: "草稿盘点清单已更新。",
-                    })
-                  }
-                  onStart={() =>
-                    void runOperation(() => startStocktake(selectedTask.id), {
-                      type: "success",
-                      title: "盘点已开始",
-                      description: "现在可以录入实盘数量。",
-                    })
-                  }
-                />
-              ) : null}
-
-              {selectedTask.status === "submitted" ? (
-                <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-bold text-amber-950">复核意见</span>
-                    <textarea
-                      value={approvalRemarks}
-                      onChange={(event) => setApprovalRemarks(event.target.value)}
-                      rows={3}
-                      className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none focus:border-primary"
-                      placeholder="填写审批意见，确认后会生成 adjust 库存调整流水"
-                    />
-                  </label>
-                </section>
-              ) : null}
-
-              {selectedTask.status !== "draft" ? (
-                <ItemTable
-                  task={selectedTask}
-                  query={query}
-                  reviewFilter={reviewFilter}
-                  countedDrafts={countedDrafts}
-                  remarksDrafts={remarksDrafts}
-                  submitting={submitting || !canCount}
-                  onChangeQuery={setQuery}
-                  onChangeReviewFilter={setReviewFilter}
-                  onChangeCount={(itemId, value) => setCountedDrafts((current) => ({ ...current, [itemId]: value }))}
-                  onChangeRemarks={(itemId, value) => setRemarksDrafts((current) => ({ ...current, [itemId]: value }))}
-                  onSaveCount={handleSaveCount}
-                />
-              ) : null}
-
-              {selectedTask.status === "approved" ? (
-                <OperationAlert
-                  type="success"
-                  title="盘点已完成"
-                  description="任务已完成审批，非零差异项已生成 signed adjust 库存调整流水。"
-                  showIcon
-                />
-              ) : null}
-            </>
-          ) : (
-            <section className="flex min-h-[520px] flex-col items-center justify-center rounded-3xl border border-dashed border-surface-container bg-surface-container-lowest p-8 text-center">
-              <ClipboardCheck size={40} className="text-on-surface-variant" />
-              <h3 className="mt-4 font-headline text-xl font-bold text-on-surface">选择或创建盘点任务</h3>
-              <p className="mt-2 text-sm text-on-surface-variant">任务会先进入草稿阶段，确认盘点内容后再开始录入实盘数量。</p>
-              <button
-                type="button"
-                onClick={() => setFilters({ task_type: "", status: "" })}
-                className="mt-5 inline-flex items-center gap-2 rounded-2xl border border-surface-container px-4 py-3 text-sm font-bold"
-              >
-                <RotateCcw size={16} />
-                重置筛选
-              </button>
-            </section>
-          )}
+          {tasksQuery.isLoading ? <LoaderCircle size={18} className="animate-spin text-primary" /> : null}
         </div>
-      </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <select
+            value={filters.task_type}
+            onChange={(event) => setFilters((current) => ({ ...current, task_type: event.target.value as "" | StocktakeTaskType }))}
+            className="rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm"
+          >
+            <option value="">全部类型</option>
+            {Object.entries(taskTypeLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filters.status}
+            onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as "" | StocktakeTaskStatus }))}
+            className="rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm"
+          >
+            <option value="">全部状态</option>
+            {Object.entries(statusLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={filters.date_from}
+            onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))}
+            className="rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm"
+            aria-label="开始日期"
+          />
+          <input
+            type="date"
+            value={filters.date_to}
+            onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))}
+            className="rounded-2xl border border-surface-container bg-surface-container-low px-4 py-3 text-sm"
+            aria-label="结束日期"
+          />
+          <button
+            type="button"
+            onClick={() => setFilters({ task_type: "", status: "", date_from: today, date_to: today })}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-surface-container bg-white px-4 py-3 text-sm font-bold text-on-surface hover:bg-surface-container-low"
+          >
+            <RotateCcw size={16} />
+            当日工单
+          </button>
+        </div>
+
+        <div className="mt-6 overflow-hidden rounded-3xl border border-surface-container">
+          <table className="w-full min-w-[980px] text-left text-sm">
+            <thead className="bg-surface-container-high text-xs font-bold text-on-surface-variant">
+              <tr>
+                <th className="px-5 py-4">任务</th>
+                <th className="px-5 py-4">状态</th>
+                <th className="px-5 py-4">创建人</th>
+                <th className="px-5 py-4 text-right">进度</th>
+                <th className="px-5 py-4 text-right">差异项</th>
+                <th className="px-5 py-4">创建时间</th>
+                <th className="px-5 py-4 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-container">
+              {tasks.map((task) => (
+                <tr key={task.id} className="hover:bg-surface-container-low">
+                  <td className="px-5 py-4 font-headline font-bold text-on-surface">#{task.id} {taskTypeLabels[task.task_type]}</td>
+                  <td className="px-5 py-4"><StatusBadge status={task.status} /></td>
+                  <td className="px-5 py-4 text-on-surface-variant">{task.created_by?.display ?? "-"}</td>
+                  <td className="px-5 py-4 text-right font-semibold">{Math.round(task.stats.progress * 100)}%</td>
+                  <td className="px-5 py-4 text-right font-semibold">{task.stats.difference_items}</td>
+                  <td className="px-5 py-4 text-on-surface-variant">{formatDateTime(task.created_at)}</td>
+                  <td className="px-5 py-4 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTaskId(task.id)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-surface-container bg-white px-4 py-2 text-xs font-bold text-on-surface hover:bg-surface-container-low"
+                    >
+                      <Eye size={15} />
+                      详情
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!tasksQuery.isLoading && tasks.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-12 text-center text-sm text-on-surface-variant">
+                    暂无盘点任务。
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {selectedTaskId !== null ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[3px]">
+          <section className="ambient-shadow flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest">
+            <div className="flex items-start justify-between gap-4 border-b border-surface-container-high px-6 py-5">
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="font-headline text-2xl font-extrabold text-on-surface">
+                    {selectedTask ? `#${selectedTask.id} ${taskTypeLabels[selectedTask.task_type]}` : "盘点详情"}
+                  </h3>
+                  {selectedTask ? <StatusBadge status={selectedTask.status} /> : null}
+                </div>
+                <p className="mt-2 text-sm text-on-surface-variant">
+                  {selectedTask
+                    ? `创建于 ${formatDateTime(selectedTask.created_at)}，创建人 ${selectedTask.created_by?.display ?? "-"}。`
+                    : "正在读取盘点任务和盘点项。"}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                {selectedTask?.status === "active" && canSubmit ? (
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() =>
+                      void runOperation(() => submitStocktake(selectedTask.id), {
+                        type: "success",
+                        title: "盘点已提交",
+                        description: "任务已进入复核阶段。",
+                      })
+                    }
+                    className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
+                  >
+                    <Send size={16} />
+                    提交复核
+                  </button>
+                ) : null}
+                {selectedTask?.status === "submitted" && canApprove ? (
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() =>
+                      void runOperation(() => approveStocktake(selectedTask.id, { remarks: approvalRemarks }), {
+                        type: "success",
+                        title: "盘点已审批",
+                        description: "系统已为差异项生成库存调整流水。",
+                      })
+                    }
+                    className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
+                  >
+                    <ShieldCheck size={16} />
+                    审批确认
+                  </button>
+                ) : null}
+                {selectedTask && ["draft", "active", "submitted"].includes(selectedTask.status) && canCancel ? (
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() =>
+                      void runOperation(() => cancelStocktake(selectedTask.id, { remarks: "用户取消" }), {
+                        type: "warning",
+                        title: "盘点已取消",
+                        description: "任务记录已保留，不会物理删除。",
+                      })
+                    }
+                    className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 disabled:opacity-60"
+                  >
+                    <X size={16} />
+                    取消任务
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setSelectedTaskId(null)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-surface-container text-on-surface-variant hover:text-primary"
+                  aria-label="关闭"
+                  title="关闭"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-6">
+              {detailQuery.isLoading ? (
+                <div className="flex min-h-[420px] items-center justify-center text-primary">
+                  <LoaderCircle size={28} className="animate-spin" />
+                </div>
+              ) : selectedTask ? (
+                <div className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+                    <Metric label="盘点项" value={String(headerStats?.total_items ?? 0)} />
+                    <Metric label="已盘" value={String(headerStats?.counted_items ?? 0)} />
+                    <Metric label="未盘" value={String(headerStats?.pending_items ?? 0)} />
+                    <Metric label="需复盘" value={String(headerStats?.recount_items ?? 0)} />
+                    <Metric label="差异项" value={String(headerStats?.difference_items ?? 0)} />
+                    <Metric label="差异合计" value={formatQuantity(headerStats?.total_difference_quantity ?? "0")} />
+                  </div>
+
+                  {(selectedTask.status === "draft" || selectedTask.status === "active") && canUpdateScope ? (
+                    <ScopeControls
+                      task={selectedTask}
+                      products={products}
+                      batches={batches}
+                      submitting={submitting}
+                      onAdd={(input) =>
+                        void runOperation(() => updateStocktakeScope(selectedTask.id, input), {
+                          type: "success",
+                          title: "盘点范围已更新",
+                          description: "盘点清单已按所选条件补充。",
+                        })
+                      }
+                      onRemove={(batchId) =>
+                        void runOperation(() => updateStocktakeScope(selectedTask.id, { remove_batch_ids: [batchId] }), {
+                          type: "success",
+                          title: "盘点项已移除",
+                          description: "草稿盘点清单已更新。",
+                        })
+                      }
+                      onStart={() =>
+                        void runOperation(() => startStocktake(selectedTask.id), {
+                          type: "success",
+                          title: "盘点已开始",
+                          description: "现在可以录入实盘数量。",
+                        })
+                      }
+                    />
+                  ) : null}
+
+                  {selectedTask.status === "submitted" ? (
+                    <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+                      <label className="block space-y-2">
+                        <span className="text-sm font-bold text-amber-950">复核意见</span>
+                        <textarea
+                          value={approvalRemarks}
+                          onChange={(event) => setApprovalRemarks(event.target.value)}
+                          rows={3}
+                          className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none focus:border-primary"
+                          placeholder="填写审批意见，确认后会生成 adjust 库存调整流水"
+                        />
+                      </label>
+                    </section>
+                  ) : null}
+
+                  {selectedTask.status !== "draft" ? (
+                    <ItemTable
+                      task={selectedTask}
+                      query={query}
+                      reviewFilter={reviewFilter}
+                      countedDrafts={countedDrafts}
+                      remarksDrafts={remarksDrafts}
+                      submitting={submitting || !canCount}
+                      onChangeQuery={setQuery}
+                      onChangeReviewFilter={setReviewFilter}
+                      onChangeCount={(itemId, value) => setCountedDrafts((current) => ({ ...current, [itemId]: value }))}
+                      onChangeRemarks={(itemId, value) => setRemarksDrafts((current) => ({ ...current, [itemId]: value }))}
+                      onSaveAll={handleSaveAllCounts}
+                      changedCount={changedCountItems.length}
+                    />
+                  ) : null}
+
+                  {selectedTask.status === "approved" ? (
+                    <OperationAlert
+                      type="success"
+                      title="盘点已完成"
+                      description="任务已完成审批，非零差异项已生成 signed adjust 库存调整流水。"
+                      showIcon
+                    />
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex min-h-[420px] items-center justify-center text-sm text-on-surface-variant">
+                  未找到盘点任务。
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       <CreateTaskModal
         open={isCreateOpen}

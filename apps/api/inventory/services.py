@@ -1228,7 +1228,7 @@ class StocktakeService:
     active_item_statuses = (StocktakeItem.STATUS_COUNTED, StocktakeItem.STATUS_APPROVED)
 
     @classmethod
-    def list_tasks(cls, *, task_type: str | None, status: str | None, page: int, size: int):
+    def list_tasks(cls, *, task_type: str | None, status: str | None, date_from=None, date_to=None, page: int, size: int):
         try:
             queryset = StocktakeTask.objects.select_related("created_by", "submitted_by", "approved_by").order_by(
                 "-created_at",
@@ -1238,6 +1238,10 @@ class StocktakeService:
                 queryset = queryset.filter(task_type=task_type)
             if status:
                 queryset = queryset.filter(status=status)
+            if date_from:
+                queryset = queryset.filter(created_at__gte=timezone.make_aware(datetime.combine(date_from, time.min)))
+            if date_to:
+                queryset = queryset.filter(created_at__lt=timezone.make_aware(datetime.combine(date_to + timedelta(days=1), time.min)))
             total = queryset.count()
             offset = (page - 1) * size
             return list(queryset[offset : offset + size]), total

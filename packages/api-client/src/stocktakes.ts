@@ -77,6 +77,8 @@ export interface StocktakeAuditLogDto {
 export interface StocktakeListParams {
   task_type?: StocktakeTaskType;
   status?: StocktakeTaskStatus;
+  date_from?: string;
+  date_to?: string;
   page?: number;
   size?: number;
 }

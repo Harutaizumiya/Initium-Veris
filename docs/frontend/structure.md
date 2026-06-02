@@ -15,6 +15,7 @@
 - 通用组件：`components/common` 提供错误边界、分页、徽标、位置、趋势和操作反馈。
 - 图表和表格：`components/charts`、`components/tables` 提供看板和分析页面复用展示组件。
 - 样式：`apps/web/src/index.css` 定义 Tailwind 4 `@theme` token、基础字体、全局 surface 和阴影工具。
+- 日志：Web debug 日志统一入口和使用规范见 `docs/frontend/logging.md`。
 
 ## Mobile App
 

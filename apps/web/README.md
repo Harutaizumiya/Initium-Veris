@@ -31,6 +31,8 @@ pnpm --filter web dev:debug
 
 debug 模式会以 `vite --mode debug` 启动，前端日志默认开启，便于在页面右上角日志面板和浏览器控制台排查接口、认证和交互问题。
 
+日志系统说明见仓库文档：[docs/frontend/logging.md](../../docs/frontend/logging.md)。
+
 ## 环境变量
 
 参考 [.env.example](.env.example)：

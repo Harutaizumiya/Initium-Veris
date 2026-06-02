@@ -23,6 +23,7 @@ Initium-Veris/
 - 项目总览：[docs/structure.md](docs/structure.md)
 - 前端结构说明：`docs/frontend/structure.md`
 - 前端设计系统：`docs/frontend/design.md`
+- 前端日志与 debug：`docs/frontend/logging.md`
 - 后端 API 契约：`docs/backend/api.md`
 - 后端数据库结构：`docs/backend/db.md`
 - 后端迁移计划：`docs/backend/plan.md`

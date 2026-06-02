@@ -779,6 +779,21 @@ class BatchService:
 
     @staticmethod
     def _is_stale_primary_key_sequence_error(exc: IntegrityError) -> bool:
+        sqlstate = None
+        constraint_name = None
+        current = exc
+        seen: set[int] = set()
+
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            sqlstate = sqlstate or getattr(current, "sqlstate", None) or getattr(current, "pgcode", None)
+            diag = getattr(current, "diag", None)
+            constraint_name = constraint_name or getattr(diag, "constraint_name", None)
+            current = getattr(current, "__cause__", None) or getattr(current, "__context__", None)
+
+        if constraint_name == "batches_pkey":
+            return sqlstate in {None, "23505"}
+
         message = str(exc)
         return 'duplicate key value violates unique constraint "batches_pkey"' in message
 

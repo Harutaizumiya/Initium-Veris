@@ -252,6 +252,32 @@ class BatchServiceTests(SimpleTestCase):
         mock_issue_qr.assert_called_once_with(created_batch)
         created_batch.refresh_from_db.assert_called_once_with(fields=["received_at"])
 
+    def test_stale_primary_key_sequence_error_detects_postgres_constraint(self):
+        class FakeDiag:
+            constraint_name = "batches_pkey"
+
+        class FakePostgresError(Exception):
+            sqlstate = "23505"
+            diag = FakeDiag()
+
+        exc = IntegrityError("unique violation")
+        exc.__cause__ = FakePostgresError()
+
+        self.assertTrue(BatchService._is_stale_primary_key_sequence_error(exc))
+
+    def test_stale_primary_key_sequence_error_rejects_other_constraints(self):
+        class FakeDiag:
+            constraint_name = "batches_batch_code_key"
+
+        class FakePostgresError(Exception):
+            sqlstate = "23505"
+            diag = FakeDiag()
+
+        exc = IntegrityError("unique violation")
+        exc.__cause__ = FakePostgresError()
+
+        self.assertFalse(BatchService._is_stale_primary_key_sequence_error(exc))
+
     @patch("inventory.services.Batch.objects.select_related")
     def test_get_batch_translates_database_errors_to_conflict(self, mock_select_related):
         mock_select_related.return_value.get.side_effect = DatabaseError("db unavailable")

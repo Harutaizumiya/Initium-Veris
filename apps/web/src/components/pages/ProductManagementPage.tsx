@@ -608,7 +608,6 @@ export const ProductManagementPage: React.FC = () => {
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">货物管理</h2>
-          <p className="mt-1 text-on-surface-variant">当前页面已接入 Django `products` 接口，支持查询、新增、编辑与删除。</p>
         </div>
         {canCreateProduct ? (
           <button

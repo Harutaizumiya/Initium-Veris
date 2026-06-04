@@ -1000,7 +1000,6 @@ export const LossReportPage: React.FC = () => {
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">报损管理</h2>
-          <p className="mt-1 text-on-surface-variant">按货物卡片发起报损，实际操作会落到对应批次，并同步沉淀到历史报损记录中。</p>
         </div>
         {canReadOperations ? (
           <button

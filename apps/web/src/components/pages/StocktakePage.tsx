@@ -776,7 +776,6 @@ export function StocktakePage() {
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">库存盘点</h2>
-          <p className="mt-1 text-on-surface-variant">创建盘点任务、确认盘点范围、录入实盘数量并审批生成库存调整流水。</p>
         </div>
         {canCreate ? (
           <button

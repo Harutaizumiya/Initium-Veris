@@ -29,7 +29,6 @@ export const StatCard = memo(function StatCard({
       >
         {Icon}
       </div>
-      <TrendBadge trend={trend} trendType={trendType} />
     </div>
     <p className="text-sm font-semibold text-on-surface-variant">{title}</p>
     <h3 className="mt-2 font-headline text-4xl font-black tracking-tight text-on-surface">

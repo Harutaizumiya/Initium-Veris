@@ -138,7 +138,6 @@ export const QrScanPage: React.FC = () => {
         <div className="mb-8">
           <div>
             <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">扫码审计</h2>
-            <p className="mt-1 text-on-surface-variant">二维码效期状态由后端审计接口返回，审计归属当前登录用户。</p>
           </div>
         </div>
 
@@ -152,7 +151,6 @@ export const QrScanPage: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="font-headline text-xl font-bold text-on-surface">审计提交</h3>
-                    <p className="mt-1 text-sm text-on-surface-variant">提交后清空输入并刷新后端审计记录。</p>
                   </div>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500">
@@ -257,7 +255,6 @@ export const QrScanPage: React.FC = () => {
                   <CheckCircle2 size={28} />
                 </div>
                 <h3 className="mt-4 font-headline text-xl font-bold text-on-surface">等待审计结果</h3>
-                <p className="mt-2 text-sm text-on-surface-variant">提交二维码后，这里显示后端返回的批次效期状态。</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -266,7 +263,6 @@ export const QrScanPage: React.FC = () => {
             <div className="flex flex-col gap-4 border-b border-surface-container-high p-6 md:flex-row md:items-center md:justify-between">
               <div>
                 <h3 className="font-headline text-xl font-bold text-on-surface">最近扫描</h3>
-                <p className="mt-1 text-sm text-on-surface-variant">{getScanWindowLabel(scanWindowDays)}所有扫码记录，不展示二维码 token。</p>
               </div>
               {isDebugMode ? (
                 <div className="inline-flex rounded-2xl border border-surface-container bg-surface-container-low p-1">

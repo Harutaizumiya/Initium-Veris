@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, LockKeyhole, LoaderCircle, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { formatErrorMessage } from "../../api";
@@ -66,6 +66,7 @@ export const LoginPage: React.FC = () => {
       style={{ backgroundImage: 'url("/background.png")' }}
     >
       <div className="absolute inset-0 bg-white/10" aria-hidden="true" />
+      <LoginCanvasEffect />
 
       <section className="relative w-full max-w-md rounded-[2rem] border border-white/70 bg-white/90 px-8 py-10 shadow-[0_32px_80px_rgba(15,47,112,0.18)] backdrop-blur-xl sm:px-12">
           <div>
@@ -173,4 +174,158 @@ export const LoginPage: React.FC = () => {
       </section>
     </main>
   );
+};
+
+type CanvasNode = {
+  x: number;
+  y: number;
+  drift: number;
+  speed: number;
+  radius: number;
+};
+
+const LoginCanvasEffect: React.FC = () => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d", { alpha: true });
+
+    if (!canvas || !context) {
+      return undefined;
+    }
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let animationFrame = 0;
+    let width = 0;
+    let height = 0;
+    let nodes: CanvasNode[] = [];
+
+    const createNodes = () => {
+      const count = Math.max(32, Math.min(62, Math.floor((width * height) / 32000)));
+      nodes = Array.from({ length: count }, (_, index) => {
+        const rightSideBias = index % 4 === 0 ? 0.44 : 0.1;
+        return {
+          x: width * (rightSideBias + Math.random() * (0.92 - rightSideBias)),
+          y: height * (0.08 + Math.random() * 0.84),
+          drift: 8 + Math.random() * 22,
+          speed: 0.00016 + Math.random() * 0.00028,
+          radius: 1.3 + Math.random() * 1.9,
+        };
+      });
+    };
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      width = Math.max(1, rect.width);
+      height = Math.max(1, rect.height);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      createNodes();
+    };
+
+    const drawAmbientGlow = (time: number) => {
+      const primaryGlow = context.createRadialGradient(
+        width * 0.68 + Math.sin(time * 0.00016) * 28,
+        height * 0.32,
+        0,
+        width * 0.68,
+        height * 0.32,
+        Math.max(width, height) * 0.36,
+      );
+      primaryGlow.addColorStop(0, "rgba(0, 110, 242, 0.12)");
+      primaryGlow.addColorStop(0.48, "rgba(0, 87, 194, 0.045)");
+      primaryGlow.addColorStop(1, "rgba(0, 87, 194, 0)");
+      context.fillStyle = primaryGlow;
+      context.fillRect(0, 0, width, height);
+
+      const secondaryGlow = context.createRadialGradient(
+        width * 0.22,
+        height * 0.72 + Math.cos(time * 0.00014) * 18,
+        0,
+        width * 0.22,
+        height * 0.72,
+        Math.max(width, height) * 0.28,
+      );
+      secondaryGlow.addColorStop(0, "rgba(39, 159, 255, 0.09)");
+      secondaryGlow.addColorStop(1, "rgba(39, 159, 255, 0)");
+      context.fillStyle = secondaryGlow;
+      context.fillRect(0, 0, width, height);
+    };
+
+    const drawNodeNetwork = (time: number) => {
+      const positions = nodes.map((node, index) => ({
+        x: node.x + Math.sin(time * node.speed + index * 0.9) * node.drift,
+        y: node.y + Math.cos(time * node.speed * 0.82 + index * 0.6) * node.drift,
+        radius: node.radius,
+      }));
+
+      context.save();
+
+      for (let i = 0; i < positions.length; i += 1) {
+        for (let j = i + 1; j < positions.length; j += 1) {
+          const distance = Math.hypot(positions[i].x - positions[j].x, positions[i].y - positions[j].y);
+
+          if (distance < 156) {
+            const opacity = 0.18 * (1 - distance / 156);
+            context.strokeStyle = `rgba(0, 87, 194, ${opacity})`;
+            context.lineWidth = 1.25;
+            context.beginPath();
+            context.moveTo(positions[i].x, positions[i].y);
+            context.lineTo(positions[j].x, positions[j].y);
+            context.stroke();
+          }
+        }
+      }
+
+      for (const position of positions) {
+        context.beginPath();
+        context.fillStyle = "rgba(0, 87, 194, 0.32)";
+        context.arc(position.x, position.y, position.radius * 1.15, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      context.restore();
+    };
+
+    const render = (time: number) => {
+      context.clearRect(0, 0, width, height);
+      drawAmbientGlow(time);
+      drawNodeNetwork(time);
+
+      if (!reduceMotion.matches) {
+        animationFrame = window.requestAnimationFrame(render);
+      }
+    };
+
+    const handleMotionPreferenceChange = () => {
+      window.cancelAnimationFrame(animationFrame);
+      resize();
+      render(0);
+
+      if (!reduceMotion.matches) {
+        animationFrame = window.requestAnimationFrame(render);
+      }
+    };
+
+    resize();
+    render(0);
+
+    if (!reduceMotion.matches) {
+      animationFrame = window.requestAnimationFrame(render);
+    }
+
+    window.addEventListener("resize", resize);
+    reduceMotion.addEventListener("change", handleMotionPreferenceChange);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", resize);
+      reduceMotion.removeEventListener("change", handleMotionPreferenceChange);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" />;
 };

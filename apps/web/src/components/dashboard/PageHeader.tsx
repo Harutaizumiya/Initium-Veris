@@ -7,9 +7,6 @@ export const PageHeader: React.FC = () => (
       <h2 className="text-3xl font-extrabold text-on-surface tracking-tight font-headline">
         库存实时总览
       </h2>
-      <p className="text-on-surface-variant mt-1">
-        监控全局食品库存状态及效期风险
-      </p>
     </div>
     <button
       type="button"

@@ -1076,7 +1076,6 @@ export const InventoryStatusPage: React.FC = () => {
       <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">库存状态</h2>
-          <p className="mt-1 text-on-surface-variant">查看批次库存、效期状态，并通过库存入库权限控制新增库存入口。</p>
         </div>
         {canAddInventory ? (
           <button
@@ -1101,7 +1100,7 @@ export const InventoryStatusPage: React.FC = () => {
           <div>
             <h3 className="font-headline text-xl font-bold text-on-surface">批次详情</h3>
             <p className="mt-1 text-sm text-on-surface-variant">
-              {isLoading ? "正在从后端加载批次..." : `当前共 ${activeBatchTotal} 个有效库存批次，当前页临期与过期批次优先展示。`}
+              {isLoading ? "正在从加载批次..." : `当前共 ${activeBatchTotal} 个有效库存批次`}
             </p>
           </div>
           <div className="flex items-center gap-3">

@@ -37,8 +37,8 @@ function useChartReady() {
 const ANALYTICS_ERROR_MESSAGE_OPTIONS = {
   fallback: "分析数据请求失败，请稍后重试。",
   apiClientMessages: {
-    validation_error: "分析范围参数不符合后端校验规则。",
-    conflict: "后端暂时无法生成分析聚合数据。",
+    validation_error: "分析范围参数不符合演示数据校验规则。",
+    conflict: "当前演示数据暂时无法生成分析聚合数据。",
   },
   apiClientFallback: (error: Error) => `分析数据请求失败：${error.message}`,
 };
@@ -282,7 +282,7 @@ export const AnalyticsPage: React.FC = () => {
         <div className="flex items-center gap-3 text-sm text-slate-500">
           {analyticsQuery.isLoading ? <LoaderCircle size={16} className="animate-spin text-primary" /> : <Activity size={16} className="text-primary" />}
           <span>
-            数据来源：`/api/analytics/summary`
+            数据来源：前端模拟分析数据
             {analyticsData.period ? ` · ${analyticsData.period.start} 至 ${analyticsData.period.end}` : ""}
           </span>
         </div>

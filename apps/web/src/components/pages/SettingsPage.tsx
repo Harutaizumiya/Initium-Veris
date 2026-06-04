@@ -184,7 +184,7 @@ export const SettingsProfilePage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <PageTitle title="账号信息" description="查看当前登录用户、角色状态和后端返回的有效业务权限。" />
+      <PageTitle title="账号信息" description="查看当前演示用户、角色状态和有效业务权限。" />
       <section className="rounded-3xl border border-surface-container/10 bg-surface-container-lowest p-8 ambient-shadow">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
@@ -264,7 +264,7 @@ export const PermissionDirectoryPage: React.FC = () => {
 
   return (
     <div>
-      <PageTitle title="权限目录" description="后端业务权限按 component 分组返回，前端只读展示并用于角色与用户授权。" />
+      <PageTitle title="权限目录" description="演示业务权限按 component 分组展示，并用于角色与用户授权。" />
       {permissionsQuery.isLoading ? <LoadingBlock label="正在加载权限目录" /> : null}
       {permissionsQuery.error ? <ErrorBlock message={formatErrorMessage(permissionsQuery.error, SETTINGS_ERROR_MESSAGE_OPTIONS)} /> : null}
       {!permissionsQuery.isLoading && !permissionsQuery.error ? (
@@ -404,7 +404,7 @@ export const RoleManagementPage: React.FC = () => {
       <div>
       <PageTitleWithAction
         title="角色管理"
-        description="创建 Django Group 角色，并为角色整体配置业务权限。"
+        description="创建演示角色，并为角色整体配置业务权限。"
         action={
           <button
             type="button"

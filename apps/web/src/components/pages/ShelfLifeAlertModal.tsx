@@ -267,7 +267,7 @@ export const ShelfLifeAlertModal: React.FC<{ open: boolean; onClose: () => void 
                     <LoaderCircle size={28} className="animate-spin text-on-surface-variant" />
                     <div>
                       <h4 className="text-lg font-bold text-on-surface">正在查询效期预警数据</h4>
-                      <p className="mt-1 text-sm text-on-surface-variant">请确认 Django 服务已启动，并且接口可正常访问。</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">正在读取本次会话内的演示效期数据。</p>
                     </div>
                   </div>
                 ) : error ? (

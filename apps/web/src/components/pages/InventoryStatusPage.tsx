@@ -190,7 +190,7 @@ function getCardPageSize(columnCount: number) {
 
 const INVENTORY_ERROR_MESSAGE_OPTIONS = {
   apiClientMessages: {
-    validation_error: "请求参数不符合后端校验规则。",
+    validation_error: "请求参数不符合演示数据校验规则。",
     conflict: "数据冲突，请检查批次或商品信息。",
     not_found: "目标数据不存在。",
   },
@@ -312,7 +312,7 @@ function NewBatchModal({
               <div className="flex items-start justify-between border-b border-surface-container-high px-8 py-5">
                 <div>
                   <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">新增库存</h3>
-                  <p className="mt-1 text-sm text-on-surface-variant">选择货物并录入本次入库数量，后端会按库存入库权限校验。</p>
+                  <p className="mt-1 text-sm text-on-surface-variant">选择货物并录入本次入库数量，本次 demo 会在前端内存中完成库存变更。</p>
                 </div>
                 <button
                   type="button"
@@ -924,7 +924,7 @@ export const InventoryStatusPage: React.FC = () => {
       });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 409) {
-        setLabelPrintError("后端二维码凭证签发失败（409 conflict）。请确认后端已创建 batch_qr_credentials 表并完成二维码审计相关数据库初始化。");
+        setLabelPrintError("演示二维码凭证签发失败（409 conflict）。请重新选择批次后再试。");
       } else {
         setLabelPrintError(formatErrorMessage(error, INVENTORY_ERROR_MESSAGE_OPTIONS));
       }
@@ -1103,7 +1103,7 @@ export const InventoryStatusPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 md:flex">
               {isLoading ? <LoaderCircle size={16} className="animate-spin" /> : <LayoutDashboard size={16} />}
-              明细来源：`/api/batches`
+              明细来源：前端模拟批次数据
             </div>
             <ViewToggle view={view} onChange={setView} />
           </div>
@@ -1115,7 +1115,7 @@ export const InventoryStatusPage: React.FC = () => {
               <LoaderCircle size={28} className="animate-spin text-on-surface-variant" />
               <div>
                 <h4 className="text-lg font-bold text-on-surface">正在同步批次数据</h4>
-                <p className="mt-1 text-sm text-on-surface-variant">请确认 Django 服务已启动，并且 `VITE_API_BASE_URL` 指向正确后端。</p>
+                <p className="mt-1 text-sm text-on-surface-variant">正在读取本次会话内的演示批次数据。</p>
               </div>
             </div>
           ) : view === "card" ? (

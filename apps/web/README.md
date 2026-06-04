@@ -29,7 +29,7 @@ pnpm dev:debug
 pnpm --filter web dev:debug
 ```
 
-debug 模式会以 `vite --mode debug` 启动，前端日志默认开启，便于在页面右上角日志面板和浏览器控制台排查接口、认证和交互问题。
+debug 模式会以 `vite --mode debug` 启动，前端日志默认开启，便于在页面右上角日志面板和浏览器控制台排查认证和交互问题。
 
 日志系统说明见仓库文档：[docs/frontend/logging.md](../../docs/frontend/logging.md)。
 
@@ -37,6 +37,7 @@ debug 模式会以 `vite --mode debug` 启动，前端日志默认开启，便�
 
 参考 [.env.example](.env.example)：
 
-- `VITE_API_BASE_URL`：Django API 地址，默认连接 `https://veris.haruta.top/api`；本地开发可用 `.env.local` 覆盖为 `http://localhost:8000/api`
 - `GEMINI_API_KEY`：保留给现有 AI 能力
 - `VITE_LOG_*`：前端本地日志开关
+
+当前 Web 工作区运行为独立 demo：业务数据来自前端内存 mock store，不需要配置 API 地址，也不会持久化商品、批次、盘点或登录数据。

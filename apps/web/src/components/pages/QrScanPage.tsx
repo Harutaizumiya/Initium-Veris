@@ -36,8 +36,8 @@ function formatDate(value: string) {
 const QR_SCAN_ERROR_MESSAGE_OPTIONS = {
   fallback: "扫码审计提交失败，请稍后重试。",
   apiClientMessages: {
-    validation_error: "二维码提交参数不符合后端校验规则。",
-    invalid_response: "后端返回格式不符合约定。",
+    validation_error: "二维码提交参数不符合演示数据校验规则。",
+    invalid_response: "演示数据返回格式不符合约定。",
   },
 };
 
@@ -155,7 +155,7 @@ export const QrScanPage: React.FC = () => {
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500">
                   <ScanLine size={16} />
-                  接口来源：`/api/qr-scans`
+                  数据来源：前端模拟扫码审计
                 </div>
               </div>
 

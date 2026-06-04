@@ -17,7 +17,7 @@ import { buildShelfLifeAlertBatches, ShelfLifeAlertModal } from "./ShelfLifeAler
 const DASHBOARD_ERROR_MESSAGE_OPTIONS = {
   fallback: "总览数据请求失败，请稍后重试。",
   apiClientMessages: {
-    conflict: "后端暂时无法生成总览聚合数据。",
+    conflict: "当前演示数据暂时无法生成总览聚合数据。",
   },
   apiClientFallback: (error: Error) => `总览数据请求失败：${error.message}`,
 };
@@ -56,7 +56,7 @@ export const DashboardPage: React.FC = () => {
       {dashboardQuery.isLoading ? (
         <div className="mb-6 inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
           <LoaderCircle size={16} className="animate-spin" />
-          正在从 `/api/dashboard/overview` 同步总览数据
+          正在同步前端模拟总览数据
         </div>
       ) : null}
       {dashboardQuery.error ? (

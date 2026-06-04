@@ -18,7 +18,6 @@ export interface LogEntry {
 type LogListener = (entries: LogEntry[]) => void;
 type LogDetails = Record<string, unknown>;
 
-const STORAGE_KEY = "veris.logs";
 const DEFAULT_MAX_ENTRIES = 200;
 const LEVEL_WEIGHT: Record<LogLevel, number> = {
   debug: 10,
@@ -40,10 +39,6 @@ const listeners = new Set<LogListener>();
 
 function getEnvValue<K extends keyof ImportMetaEnv>(key: K) {
   return import.meta.env[key];
-}
-
-function isBrowserStorageAvailable() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
 function parseBoolean(value: string | boolean | undefined) {
@@ -150,31 +145,12 @@ function loadEntries() {
     return entries;
   }
 
-  if (!isBrowserStorageAvailable()) {
-    entries = [];
-    return entries;
-  }
-
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    entries = stored ? (JSON.parse(stored) as LogEntry[]) : [];
-  } catch {
-    entries = [];
-  }
-
+  entries = [];
   return entries;
 }
 
 function persistEntries(nextEntries: LogEntry[]) {
   entries = nextEntries;
-
-  if (isBrowserStorageAvailable()) {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextEntries));
-    } catch {
-      // Local logging must never break the app if storage quota is exceeded.
-    }
-  }
 
   listeners.forEach((listener) => listener([...nextEntries]));
 }

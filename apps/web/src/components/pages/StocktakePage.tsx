@@ -68,7 +68,7 @@ const statusClassNames: Record<StocktakeTaskStatus, string> = {
 
 const STOCKTAKE_ERROR_MESSAGE_OPTIONS = {
   apiClientMessages: {
-    validation_error: "请求参数不符合后端校验规则。",
+    validation_error: "请求参数不符合演示数据校验规则。",
     conflict: "当前盘点状态不允许执行该操作，或审批调整会导致库存为负。",
     not_found: "目标盘点任务或盘点项不存在。",
   },

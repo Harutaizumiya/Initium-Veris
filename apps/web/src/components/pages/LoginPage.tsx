@@ -154,7 +154,7 @@ export const LoginPage: React.FC = () => {
               <OperationAlert
                 type="info"
                 title="忘记密码"
-                description="请联系系统管理员或后端管理员重置账号密码。"
+                description="请使用演示账号进入系统，或联系系统管理员重置账号密码。"
                 showIcon
                 closable
               />

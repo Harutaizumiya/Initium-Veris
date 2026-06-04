@@ -175,7 +175,7 @@ async function loadLossOperationsWithinWindow(batchId: number, cutoffMs: number)
 
 const LOSS_REPORT_ERROR_MESSAGE_OPTIONS = {
   apiClientMessages: {
-    validation_error: "请求参数不符合后端校验规则。",
+    validation_error: "请求参数不符合演示数据校验规则。",
     conflict: "操作失败，当前批次数据可能已被其他人更新，或该记录已不允许再次撤销。",
     not_found: "目标批次不存在。",
   },
@@ -241,7 +241,7 @@ export function LossReportModal({
                 <div>
                   <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">发起报损</h3>
                   <p className="mt-1 text-sm text-on-surface-variant">
-                    当前货物：{card.product.product_name}。报损会直接写入 Django `batch operations` 接口。
+                    当前货物：{card.product.product_name}。报损会写入本次会话的前端模拟流水。
                   </p>
                 </div>
                 <button
@@ -1067,7 +1067,7 @@ export const LossReportPage: React.FC = () => {
           </div>
           {isDebugMode ? (
             <div className="inline-flex items-center gap-2 rounded-2xl border border-surface-container bg-surface-container-low px-4 py-2 text-sm text-on-surface-variant">
-              数据来源：`/api/products` + `/api/batches`
+              数据来源：前端模拟商品与批次数据
             </div>
           ) : null}
         </div>
@@ -1077,7 +1077,7 @@ export const LossReportPage: React.FC = () => {
             <LoaderCircle size={30} className="animate-spin text-on-surface-variant" />
             <div>
               <h4 className="text-lg font-bold text-on-surface">正在加载报损页数据</h4>
-              <p className="mt-1 text-sm text-on-surface-variant">请确认 Django 服务已启动，且产品与批次接口可正常访问。</p>
+              <p className="mt-1 text-sm text-on-surface-variant">正在读取本次会话内的演示商品与批次数据。</p>
             </div>
           </div>
         ) : filteredProductCards.length > 0 ? (

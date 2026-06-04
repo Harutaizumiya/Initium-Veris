@@ -406,7 +406,7 @@ export const LabelPrintModal: React.FC<LabelPrintModalProps> = ({ open, payload,
                   {loading ? (
                     <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-on-surface-variant">
                       <LoaderCircle size={18} className="animate-spin" />
-                      正在从后端加载二维码凭证...
+                      正在加载演示二维码凭证...
                     </div>
                   ) : error ? (
                     <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-600">

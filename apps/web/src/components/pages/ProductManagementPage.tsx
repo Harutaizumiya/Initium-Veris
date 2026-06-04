@@ -56,7 +56,7 @@ function getUniqueOptions(values: Array<string | null>) {
 
 const PRODUCT_ERROR_MESSAGE_OPTIONS = {
   apiClientMessages: {
-    validation_error: "请求参数不符合后端校验规则。",
+    validation_error: "请求参数不符合演示数据校验规则。",
     conflict: "数据冲突，请检查条码是否重复。",
     not_found: "目标数据不存在，可能已被其他人删除。",
   },
@@ -124,7 +124,7 @@ function ProductFormModal({
                     {product ? "编辑货物" : "新增货物"}
                   </h3>
                   <p className="mt-1 text-sm text-on-surface-variant">
-                    当前表单已切换到 Django 接口，提交会直接写入后端数据。
+                    当前表单使用前端模拟数据，提交只影响本次 demo 会话。
                   </p>
                 </div>
                 <button
@@ -292,7 +292,7 @@ function DeleteConfirmModal({
         </div>
         <h3 className="text-center font-headline text-2xl font-extrabold tracking-tight text-on-surface">删除货物</h3>
         <p className="mt-3 text-center text-sm leading-6 text-on-surface-variant">
-          确认删除 <span className="font-bold text-on-surface">{product.product_name}</span> 吗？该操作会直接调用后端删除接口。
+          确认删除 <span className="font-bold text-on-surface">{product.product_name}</span> 吗？该操作只会影响本次 demo 会话。
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
           <button
@@ -695,7 +695,7 @@ export const ProductManagementPage: React.FC = () => {
             <h3 className="font-headline text-xl font-bold text-on-surface">货物列表</h3>
             <p className="mt-1 text-sm text-on-surface-variant">
               {isLoading
-                ? "正在从后端拉取数据..."
+                ? "正在读取演示商品数据..."
                 : hasLocalFilters
                   ? `当前页筛选结果共 ${filteredProducts.length} 条货物记录。`
                   : `当前筛选结果共 ${serverTotal} 条货物记录。`}
@@ -703,7 +703,7 @@ export const ProductManagementPage: React.FC = () => {
           </div>
           <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500">
             {isLoading ? <LoaderCircle size={16} className="animate-spin" /> : <PackageSearch size={16} />}
-            接口来源：`/api/products`
+            数据来源：前端模拟商品目录
           </div>
         </div>
 
@@ -712,7 +712,7 @@ export const ProductManagementPage: React.FC = () => {
             <LoaderCircle size={28} className="animate-spin text-on-surface-variant" />
             <div>
               <h4 className="text-lg font-bold text-on-surface">正在同步货物数据</h4>
-              <p className="mt-1 text-sm text-on-surface-variant">请确认 Django 服务已启动，并且 `VITE_API_BASE_URL` 配置正确。</p>
+              <p className="mt-1 text-sm text-on-surface-variant">正在读取本次会话内的演示商品目录。</p>
             </div>
           </div>
         ) : pagedProducts.length > 0 ? (

@@ -61,26 +61,17 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-surface px-6 py-10">
-      <section className="grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-surface-container/10 bg-surface-container-lowest ambient-shadow lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="hidden bg-primary px-10 py-12 text-white lg:flex lg:flex-col lg:justify-between">
-          <div>
-            <div className="text-sm font-bold uppercase tracking-[0.2em] text-white/70">Origin</div>
-            <h1 className="mt-5 font-headline text-4xl font-extrabold tracking-tight">食品库存管理系统</h1>
-            <p className="mt-4 text-sm leading-6 text-white/75">登录后访问库存、批次、报损和分析工作台。</p>
-          </div>
-          <div className="rounded-3xl bg-white/10 p-5 text-sm leading-6 text-white/80">
-            扫码审计、标签打印和报损操作会按当前账号写入后端审计上下文。
-          </div>
-        </div>
+    <main
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface bg-cover bg-center bg-no-repeat px-6 py-10 lg:justify-end lg:px-[10vw]"
+      style={{ backgroundImage: 'url("/background.png")' }}
+    >
+      <div className="absolute inset-0 bg-white/10" aria-hidden="true" />
 
-        <div className="px-8 py-10 sm:px-12">
+      <section className="relative w-full max-w-md rounded-[2rem] border border-white/70 bg-white/90 px-8 py-10 shadow-[0_32px_80px_rgba(15,47,112,0.18)] backdrop-blur-xl sm:px-12">
           <div>
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <LockKeyhole size={22} />
-            </div>
-            <h2 className="mt-6 font-headline text-3xl font-extrabold tracking-tight text-on-surface">登录</h2>
-            <p className="mt-2 text-sm text-on-surface-variant">使用后端账号继续访问 Origin。</p>
+            
+            <h2 className="mt-6 font-headline text-3xl font-extrabold tracking-tight text-on-surface">欢迎回来</h2>
+            <p className="mt-2 text-sm text-on-surface-variant">登录账号继续访问 Veris 库存管理平台</p>
           </div>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
@@ -162,7 +153,7 @@ export const LoginPage: React.FC = () => {
               <OperationAlert
                 type="info"
                 title="忘记密码"
-                description="当前不提供独立找回页面，请联系系统管理员或后端管理员重置账号密码。"
+                description="请联系系统管理员或后端管理员重置账号密码。"
                 showIcon
                 closable
               />
@@ -179,7 +170,6 @@ export const LoginPage: React.FC = () => {
               登录
             </button>
           </form>
-        </div>
       </section>
     </main>
   );

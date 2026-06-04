@@ -22,15 +22,9 @@ function getOperationsHint(daysUntilExpiry: number) {
     return "已过期";
   }
   if (daysUntilExpiry <= 3) {
-    return "强提醒";
+    return "请及时关注";
   }
-  if (daysUntilExpiry <= 7) {
-    return "提醒";
-  }
-  if (daysUntilExpiry <= 30) {
-    return "可关注";
-  }
-  return "正常跟进";
+  return "正常";
 }
 
 export const InventoryStatusCard = memo(function InventoryStatusCard({

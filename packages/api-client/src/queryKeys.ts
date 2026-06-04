@@ -7,6 +7,7 @@ export const queryKeys = {
   dashboard: {
     all: ["dashboard"] as const,
     overview: () => [...queryKeys.dashboard.all, "overview"] as const,
+    data: () => [...queryKeys.dashboard.all, "data"] as const,
   },
   analytics: {
     all: ["analytics"] as const,

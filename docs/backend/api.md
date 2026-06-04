@@ -24,7 +24,7 @@
 
 后端支持两条认证路径：
 
-1. Cookie token：`POST /auth/login` 写入 HttpOnly cookie `origin_auth_token`。
+1. Cookie token：`POST /auth/login` 写入 HttpOnly cookie `veris_auth_token`。
 2. Bearer token：`POST /auth/mobile-login` 在响应 `data.auth_token` 返回 token，Web 和移动端当前主要使用该路径。
 
 `CookieTokenAuthentication` 会先读取 `Authorization: Bearer <token>`，没有 Bearer 时再读取 cookie。Bearer token 状态变更请求跳过 CSRF；cookie 状态变更请求需要 `X-CSRFToken`。
@@ -36,7 +36,7 @@ Token 默认 8 小时过期，`remember_me=true` 时为 3 天。数据库只保�
 | Method | Path | Auth | 说明 |
 | --- | --- | --- | --- |
 | `GET` | `/auth/csrf` | 否 | 获取 CSRF token，并设置可读 `csrftoken` cookie |
-| `POST` | `/auth/login` | 否 | 用户名密码登录，设置 `origin_auth_token` cookie，返回 `AuthUser` |
+| `POST` | `/auth/login` | 否 | 用户名密码登录，设置 `veris_auth_token` cookie，返回 `AuthUser` |
 | `POST` | `/auth/mobile-login` | 否 | 用户名密码登录，返回 `AuthUser + auth_token + expires_in`，不强制 CSRF |
 | `POST` | `/auth/logout` | 是 | 吊销当前 token 并清除认证 cookie |
 | `GET` | `/auth/me` | 是 | 返回当前用户 |

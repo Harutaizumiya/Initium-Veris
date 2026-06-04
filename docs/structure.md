@@ -14,7 +14,7 @@ Initium-Veris 是一个基于 Turborepo 的食品库存管理 monorepo。当前�
 - 部署层：`.github/workflows/deploy-api.yml` 与 `apps/api/Dockerfile` 负责后端镜像构建、服务器 systemd 重启和 `/api/ping` 健康检查
 
 ## Data Flow
-Web 和移动端通过 `packages/api-client` 访问 Django `/api`。登录主要走 `/api/auth/mobile-login` 获取 Bearer token，浏览器也可使用 `/api/auth/login` 获取 HttpOnly cookie；后续请求由 `CookieTokenAuthentication` 从 `Authorization: Bearer ...` 或 `origin_auth_token` cookie 解析用户。请求进入 `config.urls` 后分发到 `accounts` 或 `inventory`，DRF view 负责参数校验和权限解析，service 层执行业务规则并通过 Django ORM 读写 PostgreSQL。成功结果使用 `{ code, message, data }` 返回，前端由 React Query 缓存并在 mutation 后按 `queryKeys` 失效刷新。部署时 GitHub Actions 通过 SSH 拉取 `main`、构建后端 Docker 镜像、重启 systemd 服务，再检查 `/api/ping`。
+Web 和移动端通过 `packages/api-client` 访问 Django `/api`。登录主要走 `/api/auth/mobile-login` 获取 Bearer token，浏览器也可使用 `/api/auth/login` 获取 HttpOnly cookie；后续请求由 `CookieTokenAuthentication` 从 `Authorization: Bearer ...` 或 `veris_auth_token` cookie 解析用户。请求进入 `config.urls` 后分发到 `accounts` 或 `inventory`，DRF view 负责参数校验和权限解析，service 层执行业务规则并通过 Django ORM 读写 PostgreSQL。成功结果使用 `{ code, message, data }` 返回，前端由 React Query 缓存并在 mutation 后按 `queryKeys` 失效刷新。部署时 GitHub Actions 通过 SSH 拉取 `main`、构建后端 Docker 镜像、重启 systemd 服务，再检查 `/api/ping`。
 
 ## Next Steps
 - 根 README 仍有“暂未拆分 `packages/*`”的历史表述，后续应同步为当前 `packages/api-client` 结构

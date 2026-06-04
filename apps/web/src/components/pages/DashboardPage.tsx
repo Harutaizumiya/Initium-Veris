@@ -36,7 +36,7 @@ function formatUpdatedAt(timestamp: number) {
 export const DashboardPage: React.FC = () => {
   const [isShelfLifeAlertOpen, setIsShelfLifeAlertOpen] = useState(false);
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.dashboard.overview(),
+    queryKey: queryKeys.dashboard.data(),
     queryFn: getDashboardData,
   });
   const shelfLifeAlertQuery = useQuery({

@@ -43,7 +43,7 @@ apps/api/
 - `inventory` migrations 还包含对既有业务表补充 actor 字段和性能索引的安全 SQL。
 
 ## Auth And Permission Plan
-- 保留 cookie 登录：`POST /api/auth/login` 设置 `origin_auth_token` HttpOnly cookie。
+- 保留 cookie 登录：`POST /api/auth/login` 设置 `veris_auth_token` HttpOnly cookie。
 - 保留 token 登录：`POST /api/auth/mobile-login` 返回 `auth_token`，用于 Web local/session storage 和移动端内存 token。
 - Bearer token 请求跳过 CSRF；cookie 状态变更请求仍要求 `X-CSRFToken`。
 - 组件权限继续复用 Django `auth_permission` 和 `auth_group`，权限 content type 为 `accounts.componentpermission`。

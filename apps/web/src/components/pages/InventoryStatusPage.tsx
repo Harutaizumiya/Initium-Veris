@@ -9,6 +9,7 @@ import {
   createBatchOperation,
   formatErrorMessage,
   getBatchLabelPayload,
+  getDashboardOverview,
   getShelfLifeMetricsFromDates,
   listBatches,
   listProductBatches,
@@ -18,6 +19,7 @@ import {
   queryKeys,
   toInventoryRecord,
   type BatchDto,
+  type DashboardOverviewDto,
 } from "../../api";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../providers/AuthProvider";
@@ -206,27 +208,29 @@ function getErrorDebugDetail(error: unknown) {
   return JSON.stringify(error);
 }
 
-const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: { items: InventoryViewModel[] }) {
-  const totalQuantity = items.reduce((sum, viewModel) => sum + viewModel.quantityValue, 0);
-  const warningBatchCount = items.filter(
-    (viewModel) =>
-      viewModel.metrics.health !== "healthy" &&
-      viewModel.item.expiryStatus !== "expired" &&
-      viewModel.metrics.remainingDays >= 0,
-  ).length;
-  const expiredBatchCount = items.filter(
-    (viewModel) => viewModel.item.expiryStatus === "expired" || viewModel.metrics.remainingDays < 0,
-  ).length;
-  const healthyRate = Math.round(
-    (items.filter((viewModel) => viewModel.metrics.health === "healthy").length / Math.max(items.length, 1)) * 100,
-  );
+function formatOverviewQuantity(value: string) {
+  return parseQuantity(value).toLocaleString("zh-CN", { maximumFractionDigits: 1 });
+}
+
+function formatOverviewRate(value: number) {
+  return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+}
+
+const InventoryOverviewCards = memo(function InventoryOverviewCards({
+  overview,
+  isLoading,
+}: {
+  overview?: DashboardOverviewDto;
+  isLoading: boolean;
+}) {
+  const loadingValue = isLoading ? "..." : "0";
 
   return (
     <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
       <StatCard
-        title="批次总数量"
-        value={totalQuantity.toLocaleString("zh-CN", { maximumFractionDigits: 1 })}
-        trend="按批次汇总"
+        title="当前在库数量"
+        value={overview ? formatOverviewQuantity(overview.current_inventory_quantity) : loadingValue}
+        trend="按可用批次汇总"
         trendType="up"
         icon={<Package size={24} />}
         iconBg="bg-primary/10"
@@ -234,7 +238,7 @@ const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: {
       />
       <StatCard
         title="临期批次"
-        value={String(warningBatchCount)}
+        value={overview ? overview.near_expiry_batch_count.toLocaleString("zh-CN") : loadingValue}
         trend="需优先关注"
         trendType="neutral"
         icon={<Clock3 size={24} className="text-amber-600" />}
@@ -243,7 +247,7 @@ const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: {
       />
       <StatCard
         title="已过期批次"
-        value={String(expiredBatchCount)}
+        value={overview ? overview.expired_batch_count.toLocaleString("zh-CN") : loadingValue}
         trend="需及时处理"
         trendType="critical"
         icon={<TriangleAlert size={24} />}
@@ -252,7 +256,7 @@ const InventoryOverviewCards = memo(function InventoryOverviewCards({ items }: {
       />
       <StatCard
         title="健康批次占比"
-        value={`${healthyRate}%`}
+        value={overview ? formatOverviewRate(overview.batch_health_rate) : loadingValue}
         trend="效期安全率"
         trendType="up"
         icon={<ShieldCheck size={24} />}
@@ -643,6 +647,12 @@ export const InventoryStatusPage: React.FC = () => {
     staleTime: QUERY_STALE_TIME_MS,
     gcTime: QUERY_GC_TIME_MS,
   });
+  const overviewQuery = useQuery({
+    queryKey: queryKeys.dashboard.overview(),
+    queryFn: getDashboardOverview,
+    staleTime: QUERY_STALE_TIME_MS,
+    gcTime: QUERY_GC_TIME_MS,
+  });
   const products = productsQuery.data?.items ?? [];
   const inventoryItems = useMemo(
     () =>
@@ -651,11 +661,13 @@ export const InventoryStatusPage: React.FC = () => {
         .map(toInventoryRecord) ?? [],
     [batchesQuery.data],
   );
-  const isLoading = batchesQuery.isLoading || (!isCreateBatchOpen && productsQuery.isLoading);
+  const isLoading = batchesQuery.isLoading || overviewQuery.isLoading || (!isCreateBatchOpen && productsQuery.isLoading);
   const pageError = productsQuery.error
     ? formatErrorMessage(productsQuery.error, INVENTORY_ERROR_MESSAGE_OPTIONS)
     : batchesQuery.error
       ? formatErrorMessage(batchesQuery.error, INVENTORY_ERROR_MESSAGE_OPTIONS)
+      : overviewQuery.error
+        ? formatErrorMessage(overviewQuery.error, INVENTORY_ERROR_MESSAGE_OPTIONS)
       : null;
 
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
@@ -1078,7 +1090,7 @@ export const InventoryStatusPage: React.FC = () => {
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-600">{pageError}</div>
       ) : null}
 
-      <InventoryOverviewCards items={inventoryViewModels} />
+      <InventoryOverviewCards overview={overviewQuery.data} isLoading={overviewQuery.isLoading} />
 
       <section className="ambient-shadow overflow-hidden rounded-3xl border border-surface-container/10 bg-surface-container-lowest">
         <div className="flex flex-col gap-4 border-b border-surface-container-high p-8 xl:flex-row xl:items-center xl:justify-between">
@@ -1091,7 +1103,7 @@ export const InventoryStatusPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 md:flex">
               {isLoading ? <LoaderCircle size={16} className="animate-spin" /> : <LayoutDashboard size={16} />}
-              接口来源：`/api/batches`
+              明细来源：`/api/batches`
             </div>
             <ViewToggle view={view} onChange={setView} />
           </div>

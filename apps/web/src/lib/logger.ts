@@ -18,7 +18,7 @@ export interface LogEntry {
 type LogListener = (entries: LogEntry[]) => void;
 type LogDetails = Record<string, unknown>;
 
-const STORAGE_KEY = "origin.logs";
+const STORAGE_KEY = "veris.logs";
 const DEFAULT_MAX_ENTRIES = 200;
 const LEVEL_WEIGHT: Record<LogLevel, number> = {
   debug: 10,

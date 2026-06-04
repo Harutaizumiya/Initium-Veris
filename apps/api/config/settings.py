@@ -108,7 +108,7 @@ CSRF_TRUSTED_ORIGINS = list_from_env(
 QR_SCAN_NEAR_EXPIRY_DAYS = 7
 QR_TOKEN_PEPPER = required_env("QR_TOKEN_PEPPER", development_default="dev-qr-token-pepper")
 AUTH_TOKEN_PEPPER = required_env("AUTH_TOKEN_PEPPER", development_default="dev-auth-token-pepper")
-AUTH_TOKEN_COOKIE_NAME = os.environ.get("AUTH_TOKEN_COOKIE_NAME", "origin_auth_token")
+AUTH_TOKEN_COOKIE_NAME = os.environ.get("AUTH_TOKEN_COOKIE_NAME", "veris_auth_token")
 AUTH_TOKEN_COOKIE_PATH = os.environ.get("AUTH_TOKEN_COOKIE_PATH", "/api")
 AUTH_TOKEN_COOKIE_SAMESITE = os.environ.get("AUTH_TOKEN_COOKIE_SAMESITE", "Lax")
 AUTH_TOKEN_COOKIE_SECURE = bool_from_env("AUTH_TOKEN_COOKIE_SECURE", True)
@@ -129,7 +129,7 @@ else:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "origin-django-default",
+            "LOCATION": "veris-django-default",
         }
     }
 

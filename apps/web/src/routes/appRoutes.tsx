@@ -69,7 +69,8 @@ export const appRoutes: AppRoute[] = [
     label: "库存状态",
     menuGroup: "main",
     path: "/inventory-status",
-    requiredPermissions: ["batches_read"],
+    permissionMode: "all",
+    requiredPermissions: ["batches_read", "dashboard_read"],
   },
   {
     component: LossReportPage,

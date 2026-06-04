@@ -8,7 +8,7 @@
 - 环境读取：`apps/api/common/env.py`
 - 数据库 URL：`DATABASE_URL`，必须使用 `postgres` 或 `postgresql` scheme
 - 时区：`Asia/Shanghai`
-- 认证 cookie：`origin_auth_token`
+- 认证 cookie：`veris_auth_token`
 - CSRF cookie：`csrftoken`
 - Django secret：`DJANGO_SECRET_KEY`，生产环境必须显式配置
 - token pepper：`AUTH_TOKEN_PEPPER`，生产环境必须显式配置

@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { CircleAlert, CircleCheckBig, Clock3, LayoutDashboard, LayoutGrid, List, LoaderCircle, Package, Plus, Search, ShieldCheck, TriangleAlert, X } from "lucide-react";
 import {
@@ -184,15 +184,6 @@ function getCardColumnCount(containerWidth: number) {
 
 function getCardPageSize(columnCount: number) {
   return Math.max(1, columnCount) * CARD_ROWS_PER_PAGE;
-}
-
-function getCardPlaceholderCount(itemCount: number, columnCount: number) {
-  if (itemCount <= columnCount || columnCount <= 1) {
-    return 0;
-  }
-
-  const remainder = itemCount % columnCount;
-  return remainder === 0 ? 0 : columnCount - remainder;
 }
 
 const INVENTORY_ERROR_MESSAGE_OPTIONS = {
@@ -468,17 +459,13 @@ function NewBatchModal({
 
 const InventoryCardView = memo(function InventoryCardView({
   items,
-  columnCount,
   gridRef,
   onOpenDetail,
 }: {
   items: InventoryViewModel[];
-  columnCount: number;
   gridRef?: React.Ref<HTMLDivElement>;
   onOpenDetail: (item: InventoryRecord) => void;
 }) {
-  const placeholderCount = getCardPlaceholderCount(items.length, columnCount);
-
   return (
     <div
       ref={gridRef}
@@ -500,13 +487,6 @@ const InventoryCardView = memo(function InventoryCardView({
           />
         );
       })}
-      {Array.from({ length: placeholderCount }, (_, index) => (
-        <div
-          key={`inventory-card-placeholder-${index}`}
-          aria-hidden="true"
-          className="pointer-events-none min-h-[312px] rounded-3xl border border-dashed border-slate-200/80 bg-slate-50/60 sm:min-h-[332px]"
-        />
-      ))}
     </div>
   );
 });
@@ -659,6 +639,7 @@ export const InventoryStatusPage: React.FC = () => {
   const batchesQuery = useQuery({
     queryKey: queryKeys.batches.list(batchListParams),
     queryFn: () => listBatches(batchListParams),
+    placeholderData: keepPreviousData,
     staleTime: QUERY_STALE_TIME_MS,
     gcTime: QUERY_GC_TIME_MS,
   });
@@ -1068,8 +1049,12 @@ export const InventoryStatusPage: React.FC = () => {
   }, [isLoading, view]);
 
   useEffect(() => {
+    if (!batchesQuery.data?.pagination) {
+      return;
+    }
+
     setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
+  }, [batchesQuery.data?.pagination, totalPages]);
 
   return (
     <>
@@ -1122,7 +1107,7 @@ export const InventoryStatusPage: React.FC = () => {
               </div>
             </div>
           ) : view === "card" ? (
-            <InventoryCardView items={pagedItems} columnCount={cardColumnCount} gridRef={cardGridRef} onOpenDetail={openDetail} />
+            <InventoryCardView items={pagedItems} gridRef={cardGridRef} onOpenDetail={openDetail} />
           ) : (
             <InventoryListView items={pagedItems} onOpenDetail={openDetail} />
           )}

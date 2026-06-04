@@ -1,7 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { cn } from "../../lib/utils";
 import type { Category } from "../../types/inventory";
 
 interface DistributionChartProps {
@@ -29,7 +28,7 @@ export const DistributionChart = memo(function DistributionChart({ categories }:
             initial={{ width: 0 }}
             animate={{ width: `${cat.percentage}%` }}
             transition={{ duration: 1, ease: "easeOut" }}
-            className={cn("h-full rounded-full", cat.color)}
+            className="h-full rounded-full bg-primary"
           />
         </div>
       </div>

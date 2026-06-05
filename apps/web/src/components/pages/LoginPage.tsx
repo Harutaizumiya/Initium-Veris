@@ -20,6 +20,8 @@ const LOGIN_ERROR_MESSAGE_OPTIONS = {
   apiClientFallback: () => "登录失败，请稍后重试。",
   includeNativeErrorMessage: false,
 };
+const DEMO_LOGIN_USERNAME = "demo.admin";
+const DEMO_LOGIN_PASSWORD = "demo";
 
 function getRedirectTarget(state: unknown) {
   const from = (state as { from?: { pathname?: string; search?: string } } | null)?.from;
@@ -31,8 +33,8 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const redirectTarget = useMemo(() => getRedirectTarget(location.state), [location.state]);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(DEMO_LOGIN_USERNAME);
+  const [password, setPassword] = useState(DEMO_LOGIN_PASSWORD);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);

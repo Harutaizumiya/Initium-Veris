@@ -26,7 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => (
           style={{ transitionTimingFunction: SIDEBAR_EASING }}
         >
           <h1 className="truncate font-headline text-lg font-bold tracking-tighter text-primary">Veris</h1>
-          <p className="truncate text-[10px] font-medium uppercase tracking-wider text-on-surface-variant">开发版</p>
+          <p className="truncate text-[10px] font-medium uppercase tracking-wider text-on-surface-variant">Demo</p>
         </div>
         <button
           type="button"

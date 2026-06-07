@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 15
 
     env:
-      REPO_URL: https://github.com/Harutaizumiya/Initium-Veris.git
+      REPO_URL: ${{ secrets.REPO_URL }}
       DEPLOY_BRANCH: main
       APP_ROOT: /opt/Initium-Veris
       SERVICE_NAME: initium-veris-api.service
@@ -70,7 +70,7 @@ jobs:
           fi
 
           api_env_file="$APP_ROOT/apps/api/.env"
-          production_origin="https://veris.haruta.top"
+          production_origin="${{ secrets.PRODUCTION_ORIGIN }}"
 
           if [ ! -f "$api_env_file" ]; then
             echo "Missing backend environment file: $api_env_file" >&2
@@ -117,8 +117,8 @@ jobs:
           ensure_secret_env AUTH_TOKEN_PEPPER
           ensure_secret_env QR_TOKEN_PEPPER
           set_env_value DJANGO_ALLOWED_HOSTS "veris.haruta.top,localhost,127.0.0.1"
-          set_env_value CORS_ALLOWED_ORIGINS "$production_origin,http://localhost:3000,http://127.0.0.1:3000"
-          set_env_value CSRF_TRUSTED_ORIGINS "$production_origin,http://localhost:3000,http://127.0.0.1:3000"
+          set_env_value CORS_ALLOWED_ORIGINS "$production_origin"
+          set_env_value CSRF_TRUSTED_ORIGINS "$production_origin"
 
           docker build -t "$IMAGE_NAME" "$APP_ROOT/apps/api"
           systemctl daemon-reload

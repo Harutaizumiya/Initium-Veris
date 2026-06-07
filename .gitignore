@@ -3,6 +3,8 @@
 Thumbs.db
 .idea/
 .vscode/
+.playwright-cli/
+.codewhale/
 
 # Turborepo / package managers
 .turbo/

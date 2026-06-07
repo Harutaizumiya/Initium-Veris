@@ -104,7 +104,7 @@ erDiagram
 
 ## 在线 Demo
 
-- 演示地址：[https://veris.haruta.top](https://veris.haruta.top)
+- 演示地址：[https://www.veris.haruta.top](https://www.veris.haruta.top)
 - Demo 分支：`demo`
 - Demo 说明：`demo` 分支用于无后端、无数据库的静态界面演示；`main` 分支保留完整应用代码与部署流程。
 

@@ -11,7 +11,7 @@ Food Inventory & Expiration Management System - Static Demo
 </p>
 
 <p align="center">
-  <a href="https://veris.haruta.top"><img alt="Online Demo" src="https://img.shields.io/badge/demo-online-brightgreen.svg" /></a>
+  <a href="https://www.veris.haruta.top"><img alt="Online Demo" src="https://img.shields.io/badge/demo-online-brightgreen.svg" /></a>
   <img alt="Branch" src="https://img.shields.io/badge/branch-demo-orange.svg" />
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-22%2B-339933.svg" />
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB.svg" />
@@ -111,7 +111,7 @@ erDiagram
 
 ## 在线 Demo
 
-- 演示地址：[https://veris.haruta.top](https://veris.haruta.top)
+- 演示地址：[https://www.veris.haruta.top](https://www.veris.haruta.top)
 - Demo 分支：`demo`
 - Demo 说明：该分支用于无后端、无数据库的静态界面演示；完整应用部署流程保留在 `main` 分支。
 

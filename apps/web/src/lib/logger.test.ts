@@ -9,6 +9,7 @@ describe("logger", () => {
   });
 
   it("records logs by default in debug mode", () => {
+    vi.stubEnv("VITE_LOG_ENABLED", "");
     vi.stubEnv("MODE", "debug");
 
     logger.info("test", "debug mode log");

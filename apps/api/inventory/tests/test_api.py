@@ -24,8 +24,7 @@ class InventoryApiTests(SimpleTestCase):
 
     def test_homepage_renders(self):
         response = self.client.get("/")
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Origin Django")
+        self.assertEqual(response.status_code, 404)
 
     @patch("inventory.views.DashboardService.get_overview")
     def test_dashboard_overview_returns_standard_shape(self, mock_get_overview):

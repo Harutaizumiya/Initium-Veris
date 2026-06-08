@@ -1,6 +1,5 @@
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.middleware.csrf import CsrfViewMiddleware
-from django.shortcuts import render
 from django.views import View
 from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, PermissionDenied
 from rest_framework.exceptions import ValidationError as DRFValidationError
@@ -21,7 +20,7 @@ class _CsrfCheck(CsrfViewMiddleware):
 
 class HomePageView(View):
     def get(self, request):
-        return render(request, "index.html")
+        raise Http404("Not Found")
 
 
 class PingView(View):

@@ -8,7 +8,7 @@
 - 生产：`https://your-domain.example/api`，通过 `VITE_API_BASE_URL`、`EXPO_PUBLIC_API_BASE_URL` 或部署环境显式配置
 - Content-Type：`application/json`
 - 健康检查：`GET /api/ping`，返回纯文本 `pong`
-- 首页：`GET /`，返回 `templates/index.html`
+- 首页：`GET /`，直接返回 404
 
 ## Error Codes
 

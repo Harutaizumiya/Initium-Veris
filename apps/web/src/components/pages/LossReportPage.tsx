@@ -241,7 +241,7 @@ export function LossReportModal({
                 <div>
                   <h3 className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">发起报损</h3>
                   <p className="mt-1 text-sm text-on-surface-variant">
-                    当前货物：{card.product.product_name}。报损会直接写入 Django `batch operations` 接口。
+                    当前货物：{card.product.product_name}
                   </p>
                 </div>
                 <button

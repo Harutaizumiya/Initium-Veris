@@ -118,8 +118,8 @@ jobs:
           ensure_secret_env QR_TOKEN_PEPPER
           allowed_host="$(echo "$production_origin" | sed -E 's|^https?://||; s|/.*$||')"
           set_env_value DJANGO_ALLOWED_HOSTS "${allowed_host},localhost,127.0.0.1"
-          set_env_value CORS_ALLOWED_ORIGINS "$production_origin"
-          set_env_value CSRF_TRUSTED_ORIGINS "$production_origin"
+          set_env_value CORS_ALLOWED_ORIGINS "${production_origin},http://localhost:3000,http://127.0.0.1:3000"
+          set_env_value CSRF_TRUSTED_ORIGINS "${production_origin},http://localhost:3000,http://127.0.0.1:3000"
 
           docker build -t "$IMAGE_NAME" "$APP_ROOT/apps/api"
           systemctl daemon-reload
